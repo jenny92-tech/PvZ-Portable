@@ -138,6 +138,7 @@ public:
 	std::unique_ptr<CursorPreview>		mCursorPreview;
 	std::unique_ptr<MessageWidget>		mAdvice;
 	std::unique_ptr<SeedBank>			mSeedBank;
+	int32_t							mGamepadSeedIndex;	// gamepad seed packet selection
 	std::unique_ptr<GameButton>			mMenuButton;
 	std::unique_ptr<GameButton>			mStoreButton;
 	bool							mIgnoreMouseUp;
@@ -285,6 +286,7 @@ public:
 	void							KeyChar(char theChar) override;
 	void							KeyUp(KeyCode) override {}
 	void							KeyDown(KeyCode theKey) override;
+	void							GamepadClickAt(int theX, int theY);
 	void							Update() override;
 	void							UpdateLayers();
 	void							Draw(Graphics* g) override;
