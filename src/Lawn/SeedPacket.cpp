@@ -968,6 +968,22 @@ void SeedBank::Draw(Graphics* g)
 	}
 
 	g->ClearClipRect();
+
+	// Gamepad: outline the highlighted seed packet so the player can see which
+	// one the shoulder buttons have selected. A then plants it.
+	if (mApp->IsControllerActive() && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+		mBoard->mGamepadSeedIndex >= 0 && mBoard->mGamepadSeedIndex < mNumPackets)
+	{
+		SeedPacket* aSel = &mSeedPackets[mBoard->mGamepadSeedIndex];
+		if (aSel->mPacketType != SeedType::SEED_NONE)
+		{
+			// Crisp baked corner brackets, matching the board cell selector.
+			int m = 2;
+			mApp->DrawControllerSelectorFrame(g, aSel->mX - m, aSel->mY - m,
+				SEED_PACKET_WIDTH + 2 * m, SEED_PACKET_HEIGHT + 2 * m, 0.5f);
+		}
+	}
+
 	if (mApp->IsSlotMachineLevel() && mY > -IMAGE_SEEDBANK->GetHeight())
 	{
 		g->DrawImage(IMAGE_SLOTMACHINE_OVERLAY, 189, -2);
