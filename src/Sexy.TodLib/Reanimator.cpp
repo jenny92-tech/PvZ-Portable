@@ -31,6 +31,7 @@
 #include "graphics/Font.h"
 #include "misc/PerfTimer.h"
 #include "graphics/MemoryImage.h"
+#include <algorithm>
 
 unsigned int gReanimatorDefCount;
 ReanimatorDefinition* gReanimatorDefArray;
@@ -652,7 +653,7 @@ bool Reanimation::DrawTrack(Graphics* g, int theTrackIndex, int theRenderGroup, 
 	{
 		aColor = ColorsMultiply(aColor, g->GetColor());  // 将颜色再与 Graphics 的颜色进行正片叠底混合
 	}
-	int aImageAlpha = ClampInt(FloatRoundToInt(aTransform.mAlpha * aColor.mAlpha), 0, 255);
+	int aImageAlpha = std::clamp(FloatRoundToInt(aTransform.mAlpha * aColor.mAlpha), 0, 255);
 	if (aImageAlpha <= 0)  // 当图像完全透明时，返回
 	{
 		return false;
@@ -1470,7 +1471,7 @@ void Reanimation::UpdateAttacherTrack(int theTrackIndex)
 	}
 
 	Color aColor = ColorsMultiply(mColorOverride, aTrackInstance->mTrackColor);
-	aColor.mAlpha = ClampInt(FloatRoundToInt(aTransform.mAlpha * aColor.mAlpha), 0, 255);
+	aColor.mAlpha = std::clamp(FloatRoundToInt(aTransform.mAlpha * aColor.mAlpha), 0, 255);
 	AttachmentPropogateColor(aTrackInstance->mAttachmentID, aColor, mEnableExtraAdditiveDraw, mExtraAdditiveColor, mEnableExtraOverlayDraw, mExtraOverlayColor);
 }
 
