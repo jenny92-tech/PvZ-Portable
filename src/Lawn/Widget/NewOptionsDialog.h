@@ -48,6 +48,7 @@ protected:
 		NewOptionsDialog_SoundVolume,
 		NewOptionsDialog_Fullscreen,
 		NewOptionsDialog_HardwareAcceleration,
+		NewOptionsDialog_Controller,
 	};
 
 public:
@@ -57,6 +58,7 @@ public:
 	Sexy::Checkbox*			mFullscreenCheckbox;
 	Sexy::Checkbox*			mHardwareAccelerationCheckbox;
 	LawnStoneButton*		mAlmanacButton;
+	LawnStoneButton*		mControllerButton;
 	LawnStoneButton*		mBackToMainButton;
 	LawnStoneButton*		mRestartButton;
 	NewLawnButton*			mBackToGameButton;

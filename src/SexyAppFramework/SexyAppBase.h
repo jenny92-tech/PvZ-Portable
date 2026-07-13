@@ -47,6 +47,10 @@ namespace ImageLib
 	class Image;
 };
 
+// Forward-declare SDL's event union at global scope so the controller hooks can
+// take it by reference without pulling <SDL.h> into this header.
+union SDL_Event;
+
 namespace Sexy
 {
 
@@ -59,6 +63,7 @@ class SoundManager;
 class _Font;
 class MusicInterface;
 class MemoryImage;
+class Graphics;
 class Dialog;
 
 class ResourceManager;
@@ -535,6 +540,37 @@ public:
 	virtual bool			DebugKeyDown(int theKey);
 	virtual void			CloseRequestAsync();
 	void					InitInput();
+	bool					HandleControllerEvent(const SDL_Event& theEvent); // translate a gamepad event into virtual-cursor mouse events
+	bool					UpdateControllerCursor(); // advance the gamepad-driven virtual cursor one frame
+	bool					GetControllerCursor(int& theX, int& theY); // draw pos of the gamepad cursor, if active
+	bool					IsControllerActive(); // true if a gamepad is connected and driving input
+	bool					GetControllerBox(int& theX, int& theY, int& theW, int& theH); // selector-box rect when cursor is over a lawn cell
+	// Draw the four crisp corner brackets of the gamepad selector around a box.
+	// Uses a baked sprite (no PAK/resource dependency). theCornerScale sizes the
+	// bracket sprite relative to its native size (1.0 = native 41x36).
+	void					DrawControllerSelectorFrame(Graphics* g, int theX, int theY, int theW, int theH, float theCornerScale);
+	// Controller settings (canonical runtime values; the game persists these).
+	float					GetControllerSensitivity();
+	void					SetControllerSensitivity(float theValue);
+	float					GetControllerSunRadius();
+	void					SetControllerSunRadius(float theValue);
+	bool					GetControllerFreeCursor();
+	void					SetControllerFreeCursor(bool theValue);
+	bool					GetControllerCursorBoostEnabled();
+	void					SetControllerCursorBoostEnabled(bool theValue);
+	// Overridden by the game to make the gamepad cursor board-aware. If (px,py)
+	// is over a lawn cell, return true and the cell center + size (so the engine
+	// can magnetize the cursor and draw a cell selector box). Default: no board.
+	virtual bool			ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) { (void)thePx;(void)thePy;(void)outCX;(void)outCY;(void)outW;(void)outH; return false; }
+	// Overridden by the game to auto-collect sun/coins near the gamepad cursor.
+	virtual void			ControllerAutoCollect(int thePx, int thePy) { (void)thePx;(void)thePy; }
+	// Overridden by the game: true only during active gameplay (so L3 fast-forward
+	// applies to the board, not menus).
+	virtual bool			ControllerInGame() { return false; }
+	// Bounds the gamepad cursor is held inside during normal lawn play, so it
+	// cannot wander off the board. False where the whole screen is in play.
+	virtual bool			ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom)
+							{ (void)thePx; (void)outLeft; (void)outTop; (void)outRight; (void)outBottom; return false; }
 	bool					StartTextInput(std::string& theInput); // set theInput and return true if using soft keyboard capability and user pressed OK (e.g. Switch libnx swkbd)
 	void					StopTextInput();
 	void					SetTextInputRect(const Rect& theRect); // caret rect in logical coords; anchors the IME UI (candidate window, keyboard pan)

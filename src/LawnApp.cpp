@@ -24,6 +24,9 @@
 #include "Resources.h"
 #include "Lawn/LawnCommon.h"
 #include "Lawn/Board.h"
+#include "Lawn/Coin.h"
+#include "Lawn/Widget/ControllerOptionsDialog.h"
+#include <cstdlib>
 #include "Lawn/Plant.h"
 #include "Lawn/Zombie.h"
 #include "Lawn/Cutscene.h"
@@ -406,12 +409,32 @@ void LawnApp::WriteToRegistry()
 		mPlayerInfo->SaveDetails();
 	}
 
+	RegistryWriteInteger("GamepadSensitivityX100", (int)(GetControllerSensitivity() * 100));
+	RegistryWriteInteger("GamepadSunRadius", (int)GetControllerSunRadius());
+	RegistryWriteBoolean("GamepadFreeCursor", GetControllerFreeCursor());
+	RegistryWriteBoolean("GamepadCursorBoost", GetControllerCursorBoostEnabled());
+
 	SexyAppBase::WriteToRegistry();
 }
 
 void LawnApp::ReadFromRegistry()
 {
 	SexyApp::ReadFromRegistry();
+
+	// Load saved controller settings, but let an env var (applied at startup)
+	// win so on-device tuning isn't overwritten by the save.
+	int anInt;
+	if (getenv("PVZ_CURSOR_SENSITIVITY") == nullptr &&
+		RegistryReadInteger("GamepadSensitivityX100", &anInt))
+		SetControllerSensitivity(anInt / 100.0f);
+	if (getenv("PVZ_SUN_RADIUS") == nullptr &&
+		RegistryReadInteger("GamepadSunRadius", &anInt))
+		SetControllerSunRadius((float)anInt);
+	bool aBool;
+	if (RegistryReadBoolean("GamepadFreeCursor", &aBool))
+		SetControllerFreeCursor(aBool);
+	if (RegistryReadBoolean("GamepadCursorBoost", &aBool))
+		SetControllerCursorBoostEnabled(aBool);
 }
 
 bool LawnApp::WriteCurrentUserConfig()
@@ -1639,6 +1662,7 @@ void LawnApp::UpdateFrames()
 		aUpdateCount = 20;
 	}
 
+
 	for (int i = 0; i < aUpdateCount; i++)
 	{
 		mAppCounter++;
@@ -1850,6 +1874,118 @@ void LawnApp::PreDisplayHook()
 	SexyApp::PreDisplayHook();
 }
 
+
+// Gamepad cursor over the lawn: report the cell under (px,py) so the engine can
+// snap the cursor to the cell centre and draw a selector box there.
+bool LawnApp::ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH)
+{
+	if (mBoard == nullptr || mGameScene != GameScenes::SCENE_PLAYING)
+		return false;
+	if (mBoard->mPaused || !mDialogMap.empty())	// a dialog/pause is up: use the pointer so its buttons can be clicked
+		return false;
+	if (thePy < LAWN_YMIN)					// above the lawn (seed bank area)
+		return false;
+	int aGridX = mBoard->PixelToGridX(thePx, thePy);
+	int aGridY = mBoard->PixelToGridY(thePx, thePy);
+	if (aGridX < 0 || aGridY < 0 || aGridX >= MAX_GRID_SIZE_X || aGridY >= MAX_GRID_SIZE_Y)
+		return false;
+
+	// Rows are shorter on stages with a pool or a roof.
+	int aCellW = 80;
+	int aCellH = (mBoard->StageHasPool() || mBoard->StageHasRoof()) ? 85 : 100;
+
+	// PixelToGrid clamps past the right and bottom edges, so a cursor moved off
+	// the lawn there still maps to the last cell and would be pulled back onto
+	// it. Bound the lawn as a whole rather than testing the cell rect: the row
+	// geometry has offsets (roof slope, raised squares) that a per-cell test
+	// gets wrong, leaving seams between rows where the cursor briefly counts as
+	// off the lawn and flickers back to the pointer.
+	if (thePx < LAWN_XMIN || thePx >= LAWN_XMIN + MAX_GRID_SIZE_X * aCellW)
+		return false;
+
+	// The bottom edge comes from the last row of this column, so the roof's
+	// slope is accounted for.
+	int aLastRow = mBoard->StageHasPool() ? MAX_GRID_SIZE_Y - 1 : MAX_GRID_SIZE_Y - 2;
+	if (thePy >= mBoard->GridToPixelY(aGridX, aLastRow) + aCellH)
+		return false;
+
+	outCX = mBoard->GridToPixelX(aGridX, aGridY) + aCellW / 2;
+	outCY = mBoard->GridToPixelY(aGridX, aGridY) + aCellH / 2;
+	outW = aCellW;
+	outH = aCellH;
+	return true;
+}
+
+// Auto-collect sun/coins within roughly one cell of the gamepad cursor, so the
+// player just sweeps the board without clicking each one.
+void LawnApp::ControllerAutoCollect(int thePx, int thePy)
+{
+	if (mBoard == nullptr || mGameScene != GameScenes::SCENE_PLAYING)
+		return;
+	float aRadius = GetControllerSunRadius();
+	const float aRadiusSq = aRadius * aRadius;
+	for (Coin* aCoin : mBoard->mCoins)
+	{
+		if (aCoin->mDead || aCoin->mIsBeingCollected)
+			continue;
+		CoinType aType = aCoin->mType;
+		if (aType != CoinType::COIN_SUN && aType != CoinType::COIN_SMALLSUN &&
+			aType != CoinType::COIN_LARGESUN && aType != CoinType::COIN_SILVER &&
+			aType != CoinType::COIN_GOLD && aType != CoinType::COIN_DIAMOND)
+			continue;
+		float aDx = aCoin->mPosX - thePx;
+		float aDy = aCoin->mPosY - thePy;
+		if (aDx * aDx + aDy * aDy <= aRadiusSq)
+			aCoin->Collect();
+	}
+}
+
+// Where the lawn grid is the whole play area, the gamepad cursor is kept inside
+// it: seed packets are chosen with the shoulder buttons, and the shovel, store,
+// and menu have their own buttons, so nothing outside needs pointing at. Modes
+// whose play area is not the grid (Zen Garden, Tree of Wisdom, Zombiquarium,
+// the slot machine's lever) are left unbounded, as is anything with a dialog or
+// the store open -- those are already excluded by ControllerBoardCell.
+bool LawnApp::ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom)
+{
+	if (mBoard == nullptr || mGameScene != GameScenes::SCENE_PLAYING)
+		return false;
+	if (mBoard->mPaused || !mDialogMap.empty())
+		return false;
+	if (mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN ||
+		mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM ||
+		mGameMode == GameMode::GAMEMODE_CHALLENGE_ZOMBIQUARIUM ||
+		mGameMode == GameMode::GAMEMODE_CHALLENGE_SLOT_MACHINE)
+		return false;
+
+	int aCellW = 80;
+	int aCellH = (mBoard->StageHasPool() || mBoard->StageHasRoof()) ? 85 : 100;
+
+	outLeft = LAWN_XMIN;
+	outRight = LAWN_XMIN + MAX_GRID_SIZE_X * aCellW - 1;
+	outTop = LAWN_YMIN;
+
+	// Take the bottom from the last row of the cursor's own column, so the
+	// roof's slope is included.
+	int aGridX = std::clamp((thePx - LAWN_XMIN) / aCellW, 0, MAX_GRID_SIZE_X - 1);
+	int aLastRow = mBoard->StageHasPool() ? MAX_GRID_SIZE_Y - 1 : MAX_GRID_SIZE_Y - 2;
+	outBottom = mBoard->GridToPixelY(aGridX, aLastRow) + aCellH - 1;
+	return true;
+}
+
+bool LawnApp::ControllerInGame()
+{
+	return mBoard != nullptr && mGameScene == GameScenes::SCENE_PLAYING;
+}
+
+ControllerOptionsDialog* LawnApp::DoControllerOptionsDialog()
+{
+	ControllerOptionsDialog* aDialog = new ControllerOptionsDialog(this);
+	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
+	AddDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS, aDialog);
+	mWidgetManager->SetFocus(aDialog);
+	return aDialog;
+}
 
 void LawnApp::ButtonPress(int) {}
 void LawnApp::ButtonDownTick(int) {}

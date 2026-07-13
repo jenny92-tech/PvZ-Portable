@@ -23,6 +23,7 @@
 #include "GameButton.h"
 #include "../Cutscene.h"
 #include "AlmanacDialog.h"
+#include "ControllerOptionsDialog.h"
 #include "../LawnCommon.h"
 #include "../../LawnApp.h"
 #include "../System/Music.h"
@@ -43,6 +44,7 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 	mFromGameSelector = theFromGameSelector;
 	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
 	mAlmanacButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Almanac, this, "[VIEW_ALMANAC_BUTTON]");
+	mControllerButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Controller, this, IsLocalizedUI(theApp) ? "手柄设置" : "Controller");
 	mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, "[RESTART_LEVEL]");
 	mBackToMainButton = MakeButton(NewOptionsDialog::NewOptionsDialog_MainMenu, this, "[MAIN_MENU_BUTTON]");
 
@@ -118,6 +120,7 @@ NewOptionsDialog::~NewOptionsDialog()
 	delete mFullscreenCheckbox;
 	delete mHardwareAccelerationCheckbox;
 	delete mAlmanacButton;
+	delete mControllerButton;
 	delete mRestartButton;
 	delete mBackToMainButton;
 	delete mBackToGameButton;
@@ -133,6 +136,7 @@ void NewOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
 	AddWidget(mAlmanacButton);
+	AddWidget(mControllerButton);
 	AddWidget(mRestartButton);
 	AddWidget(mBackToMainButton);
 	AddWidget(mMusicVolumeSlider);
@@ -146,6 +150,7 @@ void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::RemovedFromManager(theWidgetManager);
 	RemoveWidget(mAlmanacButton);
+	RemoveWidget(mControllerButton);
 	RemoveWidget(mMusicVolumeSlider);
 	RemoveWidget(mSfxVolumeSlider);
 	RemoveWidget(mFullscreenCheckbox);
@@ -162,9 +167,26 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	mSfxVolumeSlider->Resize(199, 143, 135, 40);
 	mHardwareAccelerationCheckbox->Resize(283, 175, 46, 45);
 	mFullscreenCheckbox->Resize(284, 206, 46, 45);
-	mAlmanacButton->Resize(107, 241, 209, 46);
-	mRestartButton->Resize(mAlmanacButton->mX, mAlmanacButton->mY + 43, 209, 46);
-	mBackToMainButton->Resize(mRestartButton->mX, mRestartButton->mY + 43, 209, 46);
+	// Stack the visible column buttons from the almanac slot down. With all
+	// four shown the normal 43px pitch would run into the Back-to-Game button,
+	// so tighten it to 35px (the stone art overlaps its lower neighbour a bit,
+	// and draw order makes each row's top bevel win, so it reads as a list).
+	LawnStoneButton* aColumnButtons[] = { mAlmanacButton, mControllerButton, mRestartButton, mBackToMainButton };
+	int aVisibleCount = 0;
+	for (LawnStoneButton* aButton : aColumnButtons)
+	{
+		if (aButton->mVisible)
+			aVisibleCount++;
+	}
+	int aPitch = (aVisibleCount >= 4) ? 35 : 43;
+	int aButtonY = 241;
+	for (LawnStoneButton* aButton : aColumnButtons)
+	{
+		if (!aButton->mVisible)
+			continue;
+		aButton->Resize(107, aButtonY, 209, 46);
+		aButtonY += aPitch;
+	}
 	mBackToGameButton->Resize(30, 381, mBackToGameButton->mWidth, mBackToGameButton->mHeight);
 
 	if (mFromGameSelector)
@@ -173,11 +195,6 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 		mSfxVolumeSlider->mY += 10;
 		mHardwareAccelerationCheckbox->mY += 15;
 		mFullscreenCheckbox->mY += 20;
-	}
-
-	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || mApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
-	{
-		mAlmanacButton->mY += 43;
 	}
 }
 
@@ -324,6 +341,14 @@ void NewOptionsDialog::ButtonDepress(int theId)
 	{
 		AlmanacDialog* aDialog = mApp->DoAlmanacDialog(SeedType::SEED_NONE, ZombieType::ZOMBIE_INVALID);
 		aDialog->WaitForResult(true);
+		break;
+	}
+
+	case NewOptionsDialog::NewOptionsDialog_Controller:
+	{
+		ControllerOptionsDialog* aDialog = mApp->DoControllerOptionsDialog();
+		aDialog->WaitForResult(true);
+		mApp->KillDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS);
 		break;
 	}
 

@@ -23,6 +23,7 @@
  */
 
 #include <SDL.h>
+#include <cstdlib>
 
 #include <algorithm>
 
@@ -330,9 +331,456 @@ static bool SDLSynthesizeAsciiCharFromKeyDown(const SDL_KeyboardEvent& theEvent,
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Game controller support.
+//
+// PvZ is a mouse-driven game; there is no native gamepad path. This layer
+// drives a virtual cursor from the left stick / D-pad and synthesizes the
+// same MouseMove/MouseDown/MouseUp calls the mouse path uses, so no game
+// logic needs to know a controller exists. Clean-room; only public SDL2
+// GameController APIs are used.
+// ---------------------------------------------------------------------------
+namespace {
+
+SDL_GameController*	gController = nullptr;
+bool				gCursorValid = false;
+float				gCursorX = 0.0f;
+float				gCursorY = 0.0f;
+int					gDrawX = 0;			// last cursor pos, in game-logical space (for drawing the sprite)
+int					gDrawY = 0;
+float				gStickX = 0.0f;		// normalized [-1,1], deadzoned
+float				gStickY = 0.0f;
+Uint32				gLastAdvanceTick = 0;
+bool				gAHeld = false;		// A held -> auto-repeat clicks (sweep to collect sun)
+Uint32				gARepeatTick = 0;	// next time an auto-repeat click fires
+bool				gCursorBoost = false;	// R2/L3 held -> move the cursor faster
+bool				gOnBoard = false;	// cursor is over a lawn cell -> draw selector box, not arrow
+int					gBoxX = 0, gBoxY = 0, gBoxW = 0, gBoxH = 0;	// selector box rect (game space)
+int					gLastDpadX = 0, gLastDpadY = 0;	// previous D-pad direction (edge detection)
+Uint32				gDpadRepeatTick = 0;			// next time a held D-pad step fires
+
+const Uint32		kDpadDelay = 260;	// ms before a held D-pad direction starts repeating
+const Uint32		kDpadInterval = 110;	// ms between repeated D-pad cell steps
+const float			kSnapSpeed = 18.0f;	// how fast the cursor settles onto a cell when input stops
+const float			kJellyPull = 9.0f;	// free-mode magnetism toward a cell centre (jelly/detent feel)
+
+// Runtime controller settings. Canonical values live here; the game persists
+// them to the registry (via the SexyAppBase getters/setters below) and exposes
+// them in the controller options dialog. Env vars still override at startup for
+// on-device tuning without touching a save.
+const float			kCursorSpeed = 400.0f;			// px/s at full deflection
+float				gSensitivity = 1.0f;			// [0.5, 2.0]
+float				gSunRadius = 220.0f;			// auto-collect radius px, [60, 640]
+bool				gFreeCursor = false;			// false = confine the cursor to the lawn during normal play; true = let it roam the screen
+bool				gCursorBoostEnabled = true;		// whether R2/L3 speed the cursor up
+const int			kStickDeadzone = 6553;	// ~0.2 * 32767
+const int			kTriggerThreshold = 16384;	// half pull counts as pressed
+const float			kBoostFactor = 2.5f;	// cursor speed multiplier while R2/L3 is held
+
+const Uint32		kARepeatDelay = 300;	// ms before A begins repeating
+const Uint32		kARepeatInterval = 60;	// ms between auto-repeat clicks
+
+float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+void ControllerLoadConfig()
+{
+	const char* aEnv;
+	if ((aEnv = getenv("PVZ_CURSOR_SENSITIVITY")) != nullptr && aEnv[0] != '\0')
+		gSensitivity = Clampf((float)atof(aEnv), 0.5f, 2.0f);
+	if ((aEnv = getenv("PVZ_SUN_RADIUS")) != nullptr && aEnv[0] != '\0')
+		gSunRadius = Clampf((float)atof(aEnv), 60.0f, 640.0f);
+}
+
+void ControllerOpenFirst()
+{
+	if (gController != nullptr)
+		return;
+	for (int i = 0; i < SDL_NumJoysticks(); ++i)
+	{
+		if (SDL_IsGameController(i))
+		{
+			gController = SDL_GameControllerOpen(i);
+			if (gController != nullptr)
+				break;
+		}
+	}
+}
+
+// Cursor pixels per second, including the R2/L3 sprint modifier.
+float CursorSpeed()
+{
+	return kCursorSpeed * gSensitivity * (gCursorBoost ? kBoostFactor : 1.0f);
+}
+
+float NormalizeAxis(Sint16 theValue)
+{
+	if (theValue > -kStickDeadzone && theValue < kStickDeadzone)
+		return 0.0f;
+	float aNorm = theValue / 32767.0f;
+	if (aNorm > 1.0f) aNorm = 1.0f;
+	if (aNorm < -1.0f) aNorm = -1.0f;
+	return aNorm;
+}
+
+} // namespace
+
 void SexyAppBase::InitInput()
 {
 	SDL_Init(SDL_INIT_EVENTS);
+
+	if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == 0)
+	{
+		ControllerLoadConfig();
+		ControllerOpenFirst();
+	}
+}
+
+// Advance the virtual cursor once per frame from current stick/D-pad state and
+// push a MouseMove. Returns true if a controller is driving the cursor.
+bool SexyAppBase::UpdateControllerCursor()
+{
+	if (gController == nullptr)
+		return false;
+
+
+
+	Uint32 aNow = SDL_GetTicks();
+	if (gLastAdvanceTick == 0)
+		gLastAdvanceTick = aNow;
+	float aDt = (aNow - gLastAdvanceTick) / 1000.0f;
+	gLastAdvanceTick = aNow;
+	if (aDt < 0.0f || aDt > 0.25f)
+		aDt = 0.0f;		// first frame or a stall: no motion, but still service A-repeat
+
+	if (!gCursorValid)
+	{
+		gCursorX = mWidth * 0.5f;
+		gCursorY = mHeight * 0.5f;
+		gCursorValid = true;
+	}
+
+	int aDpadX = (SDL_GameControllerGetButton(gController, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ? 1 : 0)
+			   - (SDL_GameControllerGetButton(gController, SDL_CONTROLLER_BUTTON_DPAD_LEFT) ? 1 : 0);
+	int aDpadY = (SDL_GameControllerGetButton(gController, SDL_CONTROLLER_BUTTON_DPAD_DOWN) ? 1 : 0)
+			   - (SDL_GameControllerGetButton(gController, SDL_CONTROLLER_BUTTON_DPAD_UP) ? 1 : 0);
+	bool aStickActive = (gStickX != 0.0f || gStickY != 0.0f);
+
+	// Probe the cell under the cursor (the game reports cell centre + size).
+	int aCX, aCY, aCW, aCH;
+	bool aCellHere = ControllerBoardCell((int)gCursorX, (int)gCursorY, aCX, aCY, aCW, aCH);
+
+	if (aCellHere)
+	{
+		if (aDpadX != 0 || aDpadY != 0)
+		{
+			// Snappy D-pad: one discrete cell step per press (auto-repeat when held).
+			bool aEdge = (aDpadX != gLastDpadX || aDpadY != gLastDpadY);
+			if (aEdge || (Sint32)(aNow - gDpadRepeatTick) >= 0)
+			{
+				gCursorX += aDpadX * aCW;
+				gCursorY += aDpadY * aCH;
+				Uint32 aRepeat = aEdge ? kDpadDelay : kDpadInterval;
+				if (gCursorBoost)
+					aRepeat = (Uint32)(aRepeat / kBoostFactor);
+				gDpadRepeatTick = aNow + aRepeat;
+			}
+		}
+		else
+		{
+			// The stick slides with magnetism toward whichever cell it is
+			// over, and the cursor settles onto the nearest cell centre once
+			// input stops.
+			float aMvX = gStickX;
+			float aMvY = gStickY;
+			if (aMvX > 1.0f) aMvX = 1.0f; if (aMvX < -1.0f) aMvX = -1.0f;
+			if (aMvY > 1.0f) aMvY = 1.0f; if (aMvY < -1.0f) aMvY = -1.0f;
+			if ((aMvX != 0.0f || aMvY != 0.0f) && aDt > 0.0f)
+			{
+				gCursorX += aMvX * CursorSpeed() * aDt;
+				gCursorY += aMvY * CursorSpeed() * aDt;
+
+				// Jelly magnetism: while sliding, pull toward the cell centre the
+				// cursor is now over -- strong near the centre, ~0 at the edge, so
+				// it feels free but "sucks in" to cells (iOS/PSV detent feel).
+				int jcx, jcy, jcw, jch;
+				if (ControllerBoardCell((int)gCursorX, (int)gCursorY, jcx, jcy, jcw, jch))
+				{
+					float dx = jcx - gCursorX, dy = jcy - gCursorY;
+					float nx = (jcw > 0) ? dx / (jcw * 0.5f) : 0.0f;
+					float ny = (jch > 0) ? dy / (jch * 0.5f) : 0.0f;
+					float s = 1.0f - (nx * nx + ny * ny);	// 1 at centre, 0 at edge
+					if (s > 0.0f)
+					{
+						float f = kJellyPull * s * aDt;
+						if (f > 1.0f) f = 1.0f;
+						gCursorX += dx * f;
+						gCursorY += dy * f;
+					}
+				}
+			}
+			else if (aDt > 0.0f)
+			{
+				// Input stopped: settle onto the nearest cell centre. Both modes
+				// do this, so a plant always lands on the cell you stopped over.
+				float aLerp = kSnapSpeed * aDt;
+				if (aLerp > 1.0f) aLerp = 1.0f;
+				gCursorX += (aCX - gCursorX) * aLerp;
+				gCursorY += (aCY - gCursorY) * aLerp;
+			}
+		}
+	}
+	else if (aDt > 0.0f)
+	{
+		// Off the lawn (menus/dialogs): free pointer, stick + D-pad both move it.
+		float aFx = gStickX + aDpadX;
+		float aFy = gStickY + aDpadY;
+		if (aFx > 1.0f) aFx = 1.0f; if (aFx < -1.0f) aFx = -1.0f;
+		if (aFy > 1.0f) aFy = 1.0f; if (aFy < -1.0f) aFy = -1.0f;
+		gCursorX += aFx * CursorSpeed() * aDt;
+		gCursorY += aFy * CursorSpeed() * aDt;
+	}
+
+	if (gCursorX < 0.0f) gCursorX = 0.0f;
+	if (gCursorY < 0.0f) gCursorY = 0.0f;
+	if (gCursorX > mWidth)  gCursorX = mWidth;
+	if (gCursorY > mHeight) gCursorY = mHeight;
+
+	// Snap mode keeps the cursor on the lawn: seeds are chosen with the
+	// shoulder buttons and the shovel and menu have their own buttons, so
+	// there is nothing to reach outside it, and it cannot wander off.
+	int aLawnL, aLawnT, aLawnR, aLawnB;
+	if (!gFreeCursor && ControllerLawnBounds((int)gCursorX, aLawnL, aLawnT, aLawnR, aLawnB))
+	{
+		if (gCursorX < aLawnL) gCursorX = (float)aLawnL;
+		if (gCursorX > aLawnR) gCursorX = (float)aLawnR;
+		if (gCursorY < aLawnT) gCursorY = (float)aLawnT;
+		if (gCursorY > aLawnB) gCursorY = (float)aLawnB;
+	}
+	gLastDpadX = aDpadX;
+	gLastDpadY = aDpadY;
+
+	// Re-probe after moving. The box is centred on the cursor itself, not on the
+	// cell centre -- so in free mode it slides with the cursor (and only lands on
+	// a cell once the cursor settles there), while in snappy mode the cursor jumps
+	// cell-to-cell so the box does too.
+	int aBoxCX, aBoxCY, aBoxCW, aBoxCH;
+	gOnBoard = ControllerBoardCell((int)gCursorX, (int)gCursorY, aBoxCX, aBoxCY, aBoxCW, aBoxCH);
+	if (gOnBoard)
+	{
+		gBoxW = aBoxCW;
+		gBoxH = aBoxCH;
+		gBoxX = (int)gCursorX - gBoxW / 2;
+		gBoxY = (int)gCursorY - gBoxH / 2;
+	}
+
+	int x = (int)gCursorX;
+	int y = (int)gCursorY;
+	gDrawX = x;
+	gDrawY = y;
+
+	if (gOnBoard)
+		ControllerAutoCollect(x, y);
+
+	mMouseIn = true;
+	mLastUserInputTick = mLastTimerTime;
+	mWidgetManager->MouseMove(x, y);
+
+	// Holding A auto-repeats a click ONLY over the lawn, so sweeping collects the
+	// sun it passes. In menus/dialogs a hold must not re-fire, or it double-toggles
+	// checkboxes / re-clicks buttons (the reference build fixed the same bug).
+	if (gAHeld && gOnBoard && (Sint32)(aNow - gARepeatTick) >= 0)
+	{
+		mWidgetManager->MouseDown(x, y, 1);
+		mWidgetManager->MouseUp(x, y, 1);
+		gARepeatTick = aNow + kARepeatInterval;
+	}
+	return true;
+}
+
+// True if a controller is driving the cursor; returns its draw position (in
+// screen-image space) so the caller can blit a cursor sprite there.
+bool SexyAppBase::GetControllerCursor(int& theX, int& theY)
+{
+	if (gController == nullptr || !gCursorValid)
+		return false;
+	theX = gDrawX;
+	theY = gDrawY;
+	return true;
+}
+
+bool SexyAppBase::IsControllerActive()
+{
+	return gController != nullptr;
+}
+
+
+float SexyAppBase::GetControllerSensitivity()          { return gSensitivity; }
+void  SexyAppBase::SetControllerSensitivity(float v)   { gSensitivity = Clampf(v, 0.5f, 2.0f); }
+float SexyAppBase::GetControllerSunRadius()            { return gSunRadius; }
+void  SexyAppBase::SetControllerSunRadius(float v)     { gSunRadius = Clampf(v, 60.0f, 640.0f); }
+bool  SexyAppBase::GetControllerFreeCursor()           { return gFreeCursor; }
+void  SexyAppBase::SetControllerFreeCursor(bool v)     { gFreeCursor = v; }
+bool  SexyAppBase::GetControllerCursorBoostEnabled()   { return gCursorBoostEnabled; }
+void  SexyAppBase::SetControllerCursorBoostEnabled(bool v) { gCursorBoostEnabled = v; }
+
+// If the gamepad cursor is over a lawn cell, returns its selector-box rect
+// (game space) so the caller draws a cell box instead of the pointer arrow.
+bool SexyAppBase::GetControllerBox(int& theX, int& theY, int& theW, int& theH)
+{
+	if (gController == nullptr || !gCursorValid || !gOnBoard)
+		return false;
+	theX = gBoxX;
+	theY = gBoxY;
+	theW = gBoxW;
+	theH = gBoxH;
+	return true;
+}
+
+// Translate a controller button into the mouse/key event the game expects.
+// Returns true if the event was a controller event and was handled.
+bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
+{
+	switch (theEvent.type)
+	{
+		case SDL_CONTROLLERDEVICEADDED:
+			ControllerOpenFirst();
+			return true;
+
+		case SDL_CONTROLLERDEVICEREMOVED:
+			if (gController != nullptr &&
+				theEvent.cdevice.which ==
+					SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gController)))
+			{
+				SDL_GameControllerClose(gController);
+				gController = nullptr;
+				ControllerOpenFirst();
+			}
+			return true;
+
+		case SDL_CONTROLLERAXISMOTION:
+			if (theEvent.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX)
+				gStickX = NormalizeAxis(theEvent.caxis.value);
+			else if (theEvent.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)
+				gStickY = NormalizeAxis(theEvent.caxis.value);
+			if (theEvent.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
+			{
+				// R2 held: same 2x fast-forward as L3, on a button that is
+				// comfortable to hold. Triggers report as an axis, so treat
+				// anything past halfway as pressed.
+				bool aPressed = theEvent.caxis.value > kTriggerThreshold;
+				gCursorBoost = aPressed && gCursorBoostEnabled;
+			}
+			return true;
+
+		case SDL_CONTROLLERBUTTONDOWN:
+		case SDL_CONTROLLERBUTTONUP:
+		{
+			bool aDown = theEvent.type == SDL_CONTROLLERBUTTONDOWN;
+			int x = (int)gCursorX;
+			int y = (int)gCursorY;
+
+
+			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_A)
+			{
+				// A: commit the highlighted seed (KEYCODE_GAMEPAD_PLANT lets the
+				// game pick it up first), then click at the cursor -- which plants
+				// the now-held seed, or collects sun/coins under the cursor. Holding
+				// A auto-repeats only the click, so a hold sweep-collects sun
+				// without re-triggering a plant.
+				if (gCursorValid && aDown)
+				{
+					mMouseIn = true;
+					mLastUserInputTick = mLastTimerTime;
+					mWidgetManager->KeyDown(KEYCODE_GAMEPAD_PLANT);
+					mWidgetManager->MouseMove(x, y);
+					mWidgetManager->MouseDown(x, y, 1);
+					mWidgetManager->MouseUp(x, y, 1);
+					gAHeld = true;
+					gARepeatTick = SDL_GetTicks() + kARepeatDelay;
+				}
+				else if (!aDown)
+				{
+					gAHeld = false;
+				}
+				return true;
+			}
+
+			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_B)
+			{
+				// B in-game: Board decides -- cancel a held item, else grab the
+				// shovel. Elsewhere: right-click at the cursor.
+				if (gCursorValid && aDown)
+				{
+					mMouseIn = true;
+					mLastUserInputTick = mLastTimerTime;
+					if (ControllerInGame())
+					{
+						mWidgetManager->KeyDown(KEYCODE_GAMEPAD_SHOVEL);
+					}
+					else
+					{
+						mWidgetManager->MouseMove(x, y);
+						mWidgetManager->MouseDown(x, y, -1);
+						mWidgetManager->MouseUp(x, y, -1);
+					}
+				}
+				return true;
+			}
+
+			// Start/Select: escape. In-game that pauses (options dialog), in
+			// menus and dialogs it backs out -- same as the keyboard key.
+			if (aDown &&
+				(theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_START ||
+				 theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_BACK))
+			{
+				mLastUserInputTick = mLastTimerTime;
+				mWidgetManager->KeyDown(KEYCODE_ESCAPE);
+				return true;
+			}
+
+			// X: context action (open store / whack hammer / slot machine lever).
+			if (aDown && theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_X)
+			{
+				mWidgetManager->KeyDown(KEYCODE_GAMEPAD_CONTEXT);
+				return true;
+			}
+
+			// Y: Zen Garden helper (wake Stinky).
+			if (aDown && theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_Y)
+			{
+				mWidgetManager->KeyDown(KEYCODE_GAMEPAD_ZEN);
+				return true;
+			}
+
+			// Shoulder buttons cycle the held seed packet. L1/L2 -> previous,
+			// R1/R2 -> next. Emitted as synthetic keycodes so the game layer
+			// (Board::KeyDown) owns the seed logic.
+			if (aDown &&
+				(theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER))
+			{
+				mWidgetManager->KeyDown(KEYCODE_GAMEPAD_PREV_SEED);
+				return true;
+			}
+			if (aDown &&
+				(theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER))
+			{
+				mWidgetManager->KeyDown(KEYCODE_GAMEPAD_NEXT_SEED);
+				return true;
+			}
+
+			// L3 (left-stick click) runs the game at 2x while held, same as R2.
+			// The speed itself comes from an extra logic update per frame in
+			// LawnApp::UpdateFrames, not from a faster render loop, which a
+			// handheld already running near its frame budget cannot deliver.
+			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSTICK)
+			{
+				gCursorBoost = aDown && gCursorBoostEnabled;
+				return true;
+			}
+			return true;
+		}
+	}
+	return false;
 }
 
 static void RecordDemoMousePosition(SexyAppBase* theApp, int theX, int theY)
@@ -605,6 +1053,9 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 			return SDL_HasEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
 		}
 
+		if (HandleControllerEvent(event))
+			return SDL_HasEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+
 		switch(event.type)
 		{
 			case SDL_QUIT:
@@ -752,6 +1203,11 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 				mWidgetManager->KeyText(std::string_view(event.text.text));
 				break;
 		}
+	}
+	else
+	{
+		// No event this poll cycle: advance the controller-driven cursor once.
+		UpdateControllerCursor();
 	}
 
 	return SDL_HasEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);

@@ -137,6 +137,7 @@ public:
 	CursorPreview*					mCursorPreview;
 	MessageWidget*					mAdvice;
 	SeedBank*						mSeedBank;
+	int32_t							mGamepadSeedIndex;	// gamepad: currently highlighted seed packet (L1/R1 cycles it)
 	GameButton*						mMenuButton;
 	GameButton*						mStoreButton;
 	bool							mIgnoreMouseUp;
@@ -284,6 +285,7 @@ public:
 	void							KeyChar(char theChar) override;
 	void							KeyUp(KeyCode) override {}
 	void							KeyDown(KeyCode theKey) override;
+	void							GamepadClickAt(int theX, int theY);
 	void							Update() override;
 	void							UpdateLayers();
 	void							Draw(Graphics* g) override;

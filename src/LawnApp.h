@@ -47,6 +47,7 @@ class TitleScreen;
 class ChallengeScreen;
 class StoreScreen;
 class AlmanacDialog;
+class ControllerOptionsDialog;
 class TypingCheck;
 
 namespace Sexy
@@ -215,6 +216,10 @@ public:
 	bool							ChangeDirHook(const char* theIntendedPath) override;
 	virtual bool					NeedRegister();
 	virtual void					UpdateRegisterInfo();
+	bool							ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) override;
+	void							ControllerAutoCollect(int thePx, int thePy) override;
+	bool							ControllerInGame() override;
+	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;
 	void							ButtonPress(int theId) override;
 	void							ButtonDepress(int theId) override;
 	void							ButtonDownTick(int theId) override;
@@ -244,6 +249,7 @@ public:
 	void							CloseRequestAsync() override;
 	bool					IsChallengeWithoutSeedBank();
 	AlmanacDialog*					DoAlmanacDialog(SeedType theSeedType = SeedType::SEED_NONE, ZombieType theZombieType = ZombieType::ZOMBIE_INVALID);
+	ControllerOptionsDialog*		DoControllerOptionsDialog();
 	bool							KillAlmanacDialog();
 	int								GetSeedsAvailable();
 	Reanimation*					AddReanimation(float theX, float theY, int theRenderOrder, ReanimationType theReanimationType);

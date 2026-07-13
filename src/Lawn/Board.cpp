@@ -73,6 +73,7 @@ Board::Board(LawnApp* theApp)
 {
 	mApp = theApp;
 	mApp->mBoard = this;
+	mGamepadSeedIndex = 0;
 	PvzpHesitationTrace("preboard");
 
 	mZombies.DataArrayInitialize(1024U, "zombies");
@@ -7694,6 +7695,114 @@ void Board::KeyDown(KeyCode theKey)
 			mApp->DoNewOptions(false);
 		}
 	}
+	else if (theKey == KeyCode::KEYCODE_GAMEPAD_PREV_SEED || theKey == KeyCode::KEYCODE_GAMEPAD_NEXT_SEED)
+	{
+		// Shoulder buttons move the seed-bank highlight only. The seed is NOT
+		// picked up here -- pressing A commits it. Skip empty slots.
+		if (mSeedBank != nullptr && mSeedBank->mNumPackets > 0 &&
+			mApp->mGameScene == GameScenes::SCENE_PLAYING)
+		{
+			int aCount = mSeedBank->mNumPackets;
+			int aStep = (theKey == KeyCode::KEYCODE_GAMEPAD_NEXT_SEED) ? 1 : -1;
+			for (int i = 1; i <= aCount; i++)
+			{
+				int aIndex = (((mGamepadSeedIndex + aStep * i) % aCount) + aCount) % aCount;
+				if (mSeedBank->mSeedPackets[aIndex].mPacketType != SeedType::SEED_NONE)
+				{
+					mGamepadSeedIndex = aIndex;
+					break;
+				}
+			}
+		}
+	}
+	else if (theKey == KeyCode::KEYCODE_GAMEPAD_PLANT)
+	{
+		// A pressed: if the cursor isn't already holding anything, pick up the
+		// highlighted seed when it can be planted at the cursor's cell. The click
+		// that A also synthesizes then plants it. If sun/a coin sits under the
+		// cursor, the native click hit-test collects that first (seed stays held).
+		if (mSeedBank != nullptr && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+			mCursorObject->mCursorType == CursorType::CURSOR_TYPE_NORMAL &&
+			mGamepadSeedIndex >= 0 && mGamepadSeedIndex < mSeedBank->mNumPackets)
+		{
+			SeedPacket* aPacket = &mSeedBank->mSeedPackets[mGamepadSeedIndex];
+			if (aPacket->mPacketType != SeedType::SEED_NONE && aPacket->CanPickUp())
+			{
+				int aMouseX = mApp->mWidgetManager->mLastMouseX;
+				int aMouseY = mApp->mWidgetManager->mLastMouseY;
+				int aGridX = PixelToGridX(aMouseX, aMouseY);
+				int aGridY = PixelToGridY(aMouseX, aMouseY);
+				if (CanPlantAt(aGridX, aGridY, aPacket->mPacketType) == PlantingReason::PLANTING_OK)
+				{
+					aPacket->MouseDown(0, 0, 0);
+				}
+			}
+		}
+	}
+	else if (theKey == KeyCode::KEYCODE_GAMEPAD_CONTEXT)
+	{
+		// X: context action. Opens the store when its button is up; otherwise
+		// clicks for the level's special tool (Whack a Zombie hammer at the
+		// cursor, the Slot Machine lever wherever it is).
+		if (mApp->mGameScene != GameScenes::SCENE_PLAYING)
+			return;
+		if (mStoreButton != nullptr && !mStoreButton->mBtnNoDraw && CanInteractWithBoardButtons())
+		{
+			GamepadClickAt(mStoreButton->mX + mStoreButton->mWidth / 2,
+						   mStoreButton->mY + mStoreButton->mHeight / 2);
+		}
+		else if (mApp->IsWhackAZombieLevel() &&
+				 mCursorObject->mCursorType == CursorType::CURSOR_TYPE_HAMMER)
+		{
+			GamepadClickAt(mApp->mWidgetManager->mLastMouseX, mApp->mWidgetManager->mLastMouseY);
+		}
+		else if (mApp->IsSlotMachineLevel() && mChallenge != nullptr)
+		{
+			Rect aHandleRect = mChallenge->SlotMachineGetHandleRect();
+			GamepadClickAt(aHandleRect.mX + aHandleRect.mWidth / 2,
+						   aHandleRect.mY + aHandleRect.mHeight / 2);
+		}
+	}
+	else if (theKey == KeyCode::KEYCODE_GAMEPAD_ZEN)
+	{
+		// Y: wake Stinky. Feeding him chocolate works through the normal
+		// A-click with the chocolate on the cursor.
+		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN && mApp->mZenGarden != nullptr)
+		{
+			GridItem* aStinky = mApp->mZenGarden->GetStinky();
+			if (aStinky != nullptr && aStinky->mGridItemState == GridItemState::GRIDITEM_STINKY_SLEEPING)
+				mApp->mZenGarden->WakeStinky();
+		}
+	}
+	else if (theKey == KeyCode::KEYCODE_GAMEPAD_SHOVEL)
+	{
+		// B: with something on the cursor, put it back; otherwise grab the
+		// shovel (a real click on its button, so the pickup sound/logic runs).
+		if (mCursorObject->mCursorType != CursorType::CURSOR_TYPE_NORMAL)
+		{
+			RefreshSeedPacketFromCursor();
+		}
+		else if (mShowShovel && CanInteractWithBoardButtons())
+		{
+			Rect aShovelRect = GetShovelButtonRect();
+			GamepadClickAt(aShovelRect.mX + aShovelRect.mWidth / 2,
+						   aShovelRect.mY + aShovelRect.mHeight / 2);
+		}
+	}
+}
+
+// Synthesize a full mouse click through the widget manager so the normal
+// hit-testing and dispatch run, then return the pointer to where the gamepad
+// cursor was so the next frame's MouseMove doesn't jump.
+void Board::GamepadClickAt(int theX, int theY)
+{
+	WidgetManager* aManager = mApp->mWidgetManager;
+	int aOldX = aManager->mLastMouseX;
+	int aOldY = aManager->mLastMouseY;
+	aManager->MouseMove(theX, theY);
+	aManager->MouseDown(theX, theY, 1);
+	aManager->MouseUp(theX, theY, 1);
+	aManager->MouseMove(aOldX, aOldY);
 }
 
 static void PvzpCrash()

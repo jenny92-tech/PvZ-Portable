@@ -61,6 +61,7 @@
 #include "graphics/GLInterface.h"
 #include "graphics/GLImage.h"
 #include "graphics/MemoryImage.h"
+#include "ControllerSelectorArt.h"
 #include "widget/Dialog.h"
 #include "imagelib/ImageLib.h"
 #include "sound/SDLSoundManager.h"
@@ -1792,6 +1793,46 @@ static void UpdateScreenSaverInfo(uint32_t theTick)
 	// Screen saver info not needed
 }
 
+// Build one corner MemoryImage from the baked top-left sprite, mirrored per
+// (flipX, flipY). Returns a heap image owned by the caller-side static cache.
+static MemoryImage* MakeSelectorCorner(bool flipX, bool flipY)
+{
+	const int w = kSelCornerWidth, h = kSelCornerHeight;
+	MemoryImage* aImage = new MemoryImage();
+	aImage->mBits = new uint32_t[w * h + 1];
+	aImage->mWidth = w;
+	aImage->mHeight = h;
+	aImage->mHasTrans = true;
+	aImage->mHasAlpha = true;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+		{
+			int sx = flipX ? (w - 1 - x) : x;
+			int sy = flipY ? (h - 1 - y) : y;
+			aImage->mBits[y * w + x] = gSelCornerBits[sy * w + sx];
+		}
+	aImage->mBits[w * h] = MEMORYCHECK_ID;
+	return aImage;
+}
+
+void SexyAppBase::DrawControllerSelectorFrame(Graphics* g, int theX, int theY, int theW, int theH, float theCornerScale)
+{
+	static MemoryImage* sTL = nullptr, * sTR = nullptr, * sBL = nullptr, * sBR = nullptr;
+	if (sTL == nullptr)
+	{
+		sTL = MakeSelectorCorner(false, false);
+		sTR = MakeSelectorCorner(true, false);
+		sBL = MakeSelectorCorner(false, true);
+		sBR = MakeSelectorCorner(true, true);
+	}
+	int cw = (int)(kSelCornerWidth * theCornerScale + 0.5f);
+	int ch = (int)(kSelCornerHeight * theCornerScale + 0.5f);
+	g->DrawImage(sTL, theX, theY, cw, ch);
+	g->DrawImage(sTR, theX + theW - cw, theY, cw, ch);
+	g->DrawImage(sBL, theX, theY + theH - ch, cw, ch);
+	g->DrawImage(sBR, theX + theW - cw, theY + theH - ch, cw, ch);
+}
+
 bool SexyAppBase::DrawDirtyStuff()
 {
 	SEXY_AUTO_PERF("SexyAppBase::DrawDirtyStuff");
@@ -1859,6 +1900,39 @@ bool SexyAppBase::DrawDirtyStuff()
 
 			if (mPlayingDemoBuffer)
 				g.DrawImage(gDemoTimeLeftImage,mWidth-gDemoTimeLeftImage->GetWidth()-10,mHeight-gFPSImage->GetHeight()-gDemoTimeLeftImage->GetHeight()-15);
+		}
+
+		// The controller cursor has no OS pointer to show (KMSDRM handhelds render
+		// no hardware cursor), so draw it ourselves. Over a lawn cell it is a
+		// yellow selector box framing the cell; elsewhere it is a pointer arrow.
+		{
+			int aBoxX, aBoxY, aBoxW, aBoxH;
+			int aCurX, aCurY;
+			if (GetControllerBox(aBoxX, aBoxY, aBoxW, aBoxH))
+			{
+				// Crisp baked corner brackets around the cell (no PAK dependency).
+				Graphics g(mGLInterface->GetScreenImage());
+				const int m = -3;			// inset the frame slightly inside the cell edge
+				DrawControllerSelectorFrame(&g, aBoxX - m, aBoxY - m, aBoxW + 2 * m, aBoxH + 2 * m, 0.72f);
+			}
+			else if (mCursorNum != CURSOR_NONE && GetControllerCursor(aCurX, aCurY))
+			{
+				Graphics g(mGLInterface->GetScreenImage());
+				const int aArrow[7][2] = {
+					{0,0}, {0,28}, {6,22}, {11,33}, {15,31}, {9,21}, {18,21}
+				};
+				Point aPts[7];
+				for (int i = 0; i < 7; ++i)
+				{
+					aPts[i].mX = aCurX + aArrow[i][0];
+					aPts[i].mY = aCurY + aArrow[i][1];
+				}
+				g.SetColor(Color(255, 255, 255));
+				g.PolyFill(aPts, 7, false);
+				g.SetColor(Color(0, 0, 0));
+				for (int i = 0; i < 7; ++i)
+					g.DrawLine(aPts[i].mX, aPts[i].mY, aPts[(i + 1) % 7].mX, aPts[(i + 1) % 7].mY);
+			}
 		}
 
 		uint32_t aPreScreenBltTime = SDL_GetTicks();
