@@ -454,6 +454,26 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 	//}
 
 	mGameMode = theGameMode;
+
+	// Test convenience: PVZ_JUMP_LEVEL=<n> (or "all") jumps Adventure to a late
+	// level with every plant unlocked, so the seed chooser can be exercised.
+	if (theGameMode == GameMode::GAMEMODE_ADVENTURE)
+	{
+		const char* aJump = getenv("PVZ_JUMP_LEVEL");
+		if (aJump != nullptr && aJump[0] != '\0')
+		{
+			int aLevel = atoi(aJump);
+			if (aLevel <= 0)
+				aLevel = FINAL_LEVEL;			// "all" / non-numeric -> final level
+			mPlayerInfo->SetLevel(aLevel);
+			mPlayerInfo->mFinishedAdventure = 1;	// unlocks all 49 standard seeds
+			for (int i = StoreItem::STORE_ITEM_PLANT_GATLINGPEA; i <= StoreItem::STORE_ITEM_PLANT_IMITATER; ++i)
+				mPlayerInfo->mPurchases[i] = 1;		// unlock the 9 upgrade plants too
+			WriteCurrentUserConfig();
+			theLookForSavedGame = false;		// start a fresh level, not a mid-game save
+		}
+	}
+
 	if (theLookForSavedGame && TryLoadGame())
 		return;
 
