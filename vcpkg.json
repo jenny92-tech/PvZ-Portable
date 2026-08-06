@@ -1,8 +1,6 @@
 {
   "dependencies": [
-    "libjpeg-turbo",
     "libopenmpt",
-    "libpng",
     {
       "name": "sdl2",
       "platform": "!android"

@@ -32,12 +32,19 @@
 namespace ImageLib
 {
 
+// stb pixels use malloc/free; generated buffers use new[]/delete[].
+struct ImageBitsDeleter
+{
+	bool mStbLoaded = false;
+	void operator()(uint32_t* theBits) const;
+};
+
 class Image
 {
 public:
 	int						mWidth;
 	int						mHeight;
-	std::unique_ptr<uint32_t[]>	mBits;
+	std::unique_ptr<uint32_t[], ImageBitsDeleter>	mBits;
 
 public:
 	Image();

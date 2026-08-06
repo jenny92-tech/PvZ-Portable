@@ -10,9 +10,7 @@ license=('LGPL-3.0-or-later')
 depends=(
     glibc
     libgcc
-    libjpeg-turbo
     libopenmpt
-    libpng
     libstdc++
     sdl2-compat
     zlib
