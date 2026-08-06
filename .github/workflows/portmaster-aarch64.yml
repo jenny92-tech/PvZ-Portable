@@ -36,7 +36,7 @@ jobs:
         apt-get install -y -qq \
           gcc-13 g++-13 \
           cmake ninja-build pkg-config \
-          zlib1g-dev libjpeg-dev libpng-dev \
+          zlib1g-dev \
           libogg-dev libvorbis-dev libmpg123-dev libflac-dev \
           libasound2-dev libudev-dev
 
@@ -92,7 +92,7 @@ jobs:
         strip dist/pvz_portable/pvz_portable.aarch64
         chmod +x dist/pvz_portable/pvz_portable.aarch64
         ldd build/pvz-portable | awk '{print $3}' \
-          | grep -E 'libopenmpt|libmpg123|libogg|libvorbis|libjpeg|libpng|libz\.|libstdc\+\+' \
+          | grep -E 'libopenmpt|libmpg123|libogg|libvorbis|libz\.|libstdc\+\+' \
           | while read -r lib; do cp -L "$lib" dist/pvz_portable/libs.aarch64/; done
         strip --strip-unneeded dist/pvz_portable/libs.aarch64/*.so* || true
         echo "--- contents ---"
