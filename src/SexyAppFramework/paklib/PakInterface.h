@@ -30,6 +30,9 @@
 #include <string>
 #include <string_view>
 #include <cstdint>
+#include <cstdlib>
+
+#include "PakMemoryMap.h"
 
 class PakCollection;
 
@@ -39,24 +42,39 @@ class PakCollection;
 class PakRecord
 {
 public:
-	PakCollection*			mCollection;			//+0x0
-	std::string				mFileName;				//+0x4: path inside the pak, e.g. sounds\zombie_falling_1.ogg
-	int64_t				mFileTime;				//+0x20: timestamp
-	int						mStartPos;				//+0x28: offset of the file data in mCollection->mDataPtr
-	int						mSize;					//+0x2C: size in bytes
+	PakCollection*			mCollection;			// the pak this resource lives in
+	std::string				mFileName;				// path inside the pak, e.g. sounds\zombie_falling_1.ogg
+	int64_t				mFileTime;				// timestamp
+	int						mStartPos;				// offset of the file data in the pak
+	int						mSize;					// size in bytes
 };
 
 typedef std::map<std::string, PakRecord> PakRecordMap;
 
-// a PakCollection holds one pak file's data in memory
+// a PakCollection gives access to one pak file's bytes. Preferably the file is
+// memory-mapped so it stays in the page cache instead of the heap; when mapping
+// is unavailable the file is read into an owned buffer instead. Either way the
+// bytes stay XOR-obfuscated as on disk and are decrypted on access.
 class PakCollection
 {
 public:
-	void*						mDataPtr;				//+0x8: raw bytes of the whole pak
+	PakMemoryMap			mMap;					// mapping of the pak file, when MapFile succeeded
+	void*					mOwnedData = nullptr;	// fallback heap copy of the pak (still obfuscated)
+	size_t					mSize = 0;
 
-	explicit PakCollection(size_t size) { mDataPtr = malloc(size); }
+	PakCollection() {}
+	~PakCollection() { free(mOwnedData); }
 
-	~PakCollection() { free(mDataPtr); }
+	PakCollection(const PakCollection&) = delete;
+	PakCollection& operator=(const PakCollection&) = delete;
+
+	const uint8_t* DataPtr() const
+	{
+		return mMap.GetDataPtr() != nullptr ? mMap.GetDataPtr() : static_cast<const uint8_t*>(mOwnedData);
+	}
+
+	// pak bytes are XOR-obfuscated on disk; decrypt on access
+	uint8_t operator[](size_t theIndex) const { return DataPtr()[theIndex] ^ 0xF7; }
 };
 
 typedef std::list<PakCollection> PakCollectionList;
