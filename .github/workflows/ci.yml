@@ -31,10 +31,8 @@ jobs:
         pacman -Syu --noconfirm
         pacman -S --noconfirm \
           cmake \
-          libjpeg-turbo \
           libogg \
           libopenmpt \
-          libpng \
           libvorbis \
           mpg123 \
           ninja \
@@ -85,10 +83,8 @@ jobs:
           base-devel
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-gcc
-          mingw-w64-ucrt-x86_64-libjpeg-turbo
           mingw-w64-ucrt-x86_64-libopenmpt
           mingw-w64-ucrt-x86_64-libogg
-          mingw-w64-ucrt-x86_64-libpng
           mingw-w64-ucrt-x86_64-libvorbis
           mingw-w64-ucrt-x86_64-mpg123
           mingw-w64-ucrt-x86_64-ninja
@@ -265,10 +261,8 @@ jobs:
         brew update
         brew install cmake \
           dylibbundler \
-          jpeg-turbo \
           libogg \
           libopenmpt \
-          libpng \
           libvorbis \
           mpg123 \
           ninja \

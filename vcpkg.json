@@ -1,9 +1,7 @@
 {
   "dependencies": [
-    "libjpeg-turbo",
     "libogg",
     "libopenmpt",
-    "libpng",
     "libvorbis",
     "mpg123",
     {

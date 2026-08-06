@@ -10,10 +10,8 @@ license=('LGPL-3.0-or-later')
 depends=(
     glibc
     libgcc
-    libjpeg-turbo
     libogg
     libopenmpt
-    libpng
     libstdc++
     libvorbis
     mpg123

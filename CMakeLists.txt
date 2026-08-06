@@ -115,13 +115,11 @@ option(DO_FIX_BUGS "Define DO_FIX_BUGS macro (Community fixes for original game 
 
 if(EMSCRIPTEN)
 	list(PREPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake")
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -sUSE_SDL=2 -sUSE_ZLIB=1 -sUSE_LIBPNG=1 -sUSE_LIBJPEG=1 -sUSE_OGG=1 -sUSE_VORBIS=1 -sUSE_MPG123=1")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -sUSE_SDL=2 -sUSE_ZLIB=1 -sUSE_LIBPNG=1 -sUSE_LIBJPEG=1 -sUSE_OGG=1 -sUSE_VORBIS=1 -sUSE_MPG123=1 -fexceptions")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -sUSE_SDL=2 -sUSE_ZLIB=1 -sUSE_OGG=1 -sUSE_VORBIS=1 -sUSE_MPG123=1")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -sUSE_SDL=2 -sUSE_ZLIB=1 -sUSE_OGG=1 -sUSE_VORBIS=1 -sUSE_MPG123=1 -fexceptions")
 else()
 	find_package(Threads REQUIRED)
 	find_package(ZLIB REQUIRED)
-	find_package(JPEG REQUIRED)
-	find_package(PNG REQUIRED)
 	find_package(SDL2 REQUIRED)
 endif()
 
@@ -204,8 +202,6 @@ if(EMSCRIPTEN)
 	target_link_options(pvz-portable PRIVATE
 		"SHELL:-sUSE_SDL=2"
 		"SHELL:-sUSE_ZLIB=1"
-		"SHELL:-sUSE_LIBPNG=1"
-		"SHELL:-sUSE_LIBJPEG=1"
 		"SHELL:-sUSE_OGG=1"
 		"SHELL:-sUSE_VORBIS=1"
 		"SHELL:-sUSE_MPG123=1"
@@ -226,10 +222,8 @@ else()
 		SDL2_mixer_ext_Static 
 		${OPENMPT_LIB} 
 		${MPG123_LIB} 
-		${VORBIS_LIB} 
-		${OGG_LIB} 
-		PNG::PNG
-		JPEG::JPEG
+		${VORBIS_LIB}
+		${OGG_LIB}
 		ZLIB::ZLIB
 		SDL2::SDL2main
 		${SDL2_LINK_TARGET}
