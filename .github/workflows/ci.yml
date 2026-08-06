@@ -31,9 +31,7 @@ jobs:
         pacman -Syu --noconfirm
         pacman -S --noconfirm \
           cmake \
-          libjpeg-turbo \
           libopenmpt \
-          libpng \
           ninja \
           sdl2-compat \
           sudo
@@ -250,9 +248,7 @@ jobs:
           base-devel
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-gcc
-          mingw-w64-ucrt-x86_64-libjpeg-turbo
           mingw-w64-ucrt-x86_64-libopenmpt
-          mingw-w64-ucrt-x86_64-libpng
           mingw-w64-ucrt-x86_64-ninja
           mingw-w64-ucrt-x86_64-SDL2
 
@@ -434,9 +430,7 @@ jobs:
         brew update
         brew install cmake \
           dylibbundler \
-          jpeg-turbo \
           libopenmpt \
-          libpng \
           ninja \
           sdl2
 
