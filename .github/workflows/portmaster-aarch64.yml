@@ -79,6 +79,9 @@ jobs:
       # older than what gcc-13 emits.
       run: |
         mkdir -p dist/pvz_portable/libs.aarch64
+        cp portmaster/PvzPortable.sh dist/
+        chmod 755 dist/PvzPortable.sh
+        cp portmaster/PvzPortable.gptk dist/pvz_portable/
         cp build/pvz-portable dist/pvz_portable/pvz_portable.aarch64
         strip dist/pvz_portable/pvz_portable.aarch64
         chmod +x dist/pvz_portable/pvz_portable.aarch64
