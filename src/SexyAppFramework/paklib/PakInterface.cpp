@@ -95,21 +95,25 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 #ifdef LOW_MEMORY
 	mPakCollectionList.emplace_back(aFileHandle);
 #else
-	mPakCollectionList.emplace_back(aFileSize);
+	mPakCollectionList.emplace_back();
 #endif
 	PakCollection* aPakCollection = &mPakCollectionList.back();
 
 #ifndef LOW_MEMORY
-	if (fread(aPakCollection->mDataPtr, 1, aFileSize, aFileHandle) != aFileSize)
+	aPakCollection->mSize = aFileSize;
+	// Prefer mapping to a heap copy. LOW_MEMORY keeps upstream's buffered I/O.
+	if (!aPakCollection->mMap.MapFile(aFileHandle, aFileSize))
 	{
-		fclose(aFileHandle);
-		return false;
+		aPakCollection->mOwnedData = malloc(aFileSize);
+		if (aPakCollection->mOwnedData == nullptr ||
+			fread(aPakCollection->mOwnedData, 1, aFileSize, aFileHandle) != aFileSize)
+		{
+			mPakCollectionList.pop_back();
+			fclose(aFileHandle);
+			return false;
+		}
 	}
 	fclose(aFileHandle);
-
-	auto *aDataPtr = static_cast<uint8_t *>(aPakCollection->mDataPtr);
-	for (size_t i = 0; i < aFileSize; i++)
-		*aDataPtr++ ^= 0xF7;
 #endif
 
 	std::string aPakKey = NormalizePakPath(theFileName);
@@ -335,8 +339,10 @@ static size_t ReadRecordBytes(PFILE* theFile, void* thePtr, int theSize)
 #else
 	int aSizeBytes = std::min(theSize, theFile->mRecord->mSize - theFile->mPos);
 
-	uchar* src = (uchar*) theFile->mRecord->mCollection->mDataPtr + theFile->mRecord->mStartPos + theFile->mPos;
-	memcpy(thePtr, src, aSizeBytes);
+	const uchar* src = theFile->mRecord->mCollection->DataPtr() + theFile->mRecord->mStartPos + theFile->mPos;
+	auto* dest = static_cast<uchar*>(thePtr);
+	for (int i = 0; i < aSizeBytes; i++)
+		dest[i] = src[i] ^ 0xF7;
 	theFile->mPos += aSizeBytes;
 	return aSizeBytes;
 #endif
@@ -358,7 +364,7 @@ int PakInterface::FGetC(PFILE* theFile)
 		{
 			if (theFile->mPos >= theFile->mRecord->mSize)
 				return EOF;
-			char aChar;
+			uchar aChar;
 			if (ReadRecordBytes(theFile, &aChar, 1) == 0)
 				return EOF;
 			if (aChar != '\r')

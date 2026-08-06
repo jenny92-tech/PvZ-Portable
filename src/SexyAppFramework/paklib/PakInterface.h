@@ -31,6 +31,8 @@
 #include <string_view>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include "PakMemoryMap.h"
 #include <mutex>
 #include <array>
 #include <span>
@@ -75,11 +77,21 @@ public:
 		return aRead;
 	}
 #else
-	void*						mDataPtr;				//+0x8: raw bytes of the whole pak
+	// Keep the archive obfuscated in the page cache and decrypt on access.
+	PakMemoryMap			mMap;
+	void*					mOwnedData = nullptr;
+	size_t					mSize = 0;
 
-	explicit PakCollection(size_t size) { mDataPtr = malloc(size); }
+	PakCollection() = default;
+	~PakCollection() { free(mOwnedData); }
 
-	~PakCollection() { free(mDataPtr); }
+	PakCollection(const PakCollection&) = delete;
+	PakCollection& operator=(const PakCollection&) = delete;
+
+	const uint8_t* DataPtr() const
+	{
+		return mMap.GetDataPtr() != nullptr ? mMap.GetDataPtr() : static_cast<const uint8_t*>(mOwnedData);
+	}
 #endif
 };
 
