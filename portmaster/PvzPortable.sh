@@ -15,6 +15,7 @@ else
 fi
 
 source $controlfolder/control.txt
+[ -f "$controlfolder/device_info.txt" ] && source $controlfolder/device_info.txt
 
 [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
 
@@ -34,6 +35,16 @@ export LD_LIBRARY_PATH="$LIB_DIR:$LD_LIBRARY_PATH"
 export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 export TEXTINPUTINTERACTIVE="Y"
 export XDG_DATA_HOME="$CONFDIR"
+
+# LawnStrings.txt in main.pak is UTF-16LE and is converted with iconv(). Some
+# handheld firmware (TrimUI) ships no glibc gconv modules, so use the bundled
+# UTF-16 converter when it is present.
+[ -d "$GAMEDIR/gconv" ] && export GCONV_PATH="$GAMEDIR/gconv"
+
+# Gamepad tuning. Uncomment and edit to override what the in-game controller
+# settings saved; the in-game values are used when these are unset.
+#export PVZ_CURSOR_SENSITIVITY=1.4   # cursor speed, 0.5-2.0
+#export PVZ_SUN_RADIUS=220           # auto-collect radius in pixels, 60-640
 
 # Keep glibc's allocator lean on low-memory handhelds: no thread caches and a
 # low mmap threshold so freed pages actually return to the OS.
