@@ -732,18 +732,21 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 			if (aButton == SDL_CONTROLLER_BUTTON_B)
 			{
 				// B in-game: Board decides -- cancel a held item, else grab the
-				// shovel. In menus it backs out, which is what a pad's B is for
-				// and keeps it from clicking whatever the cursor happens to be
-				// over: checkboxes toggle on any mouse button, so a B pressed to
-				// leave a screen used to flip the setting under the cursor.
+				// shovel. Elsewhere: right-click at the cursor.
 				if (gCursorValid && aDown)
 				{
 					mMouseIn = true;
 					mLastUserInputTick = mLastTimerTime;
 					if (ControllerInGame())
+					{
 						mWidgetManager->KeyDown(KEYCODE_GAMEPAD_SHOVEL);
+					}
 					else
-						mWidgetManager->KeyDown(KEYCODE_ESCAPE);
+					{
+						mWidgetManager->MouseMove(x, y);
+						mWidgetManager->MouseDown(x, y, -1);
+						mWidgetManager->MouseUp(x, y, -1);
+					}
 				}
 				return true;
 			}
