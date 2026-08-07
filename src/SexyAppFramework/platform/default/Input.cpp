@@ -373,6 +373,7 @@ float				gSensitivity = 1.0f;			// [0.5, 2.0]
 float				gSunRadius = 220.0f;			// auto-collect radius px, [60, 640]
 bool				gFreeCursor = false;			// false = confine the cursor to the lawn during normal play; true = let it roam the screen
 bool				gCursorBoostEnabled = true;		// whether R2/L3 speed the cursor up
+bool				gSwapXY = false;				// swap X and Y, for pads whose face buttons are labelled the other way round
 const int			kStickDeadzone = 6553;	// ~0.2 * 32767
 const int			kTriggerThreshold = 16384;	// half pull counts as pressed
 const float			kBoostFactor = 2.5f;	// cursor speed multiplier while R2/L3 is held
@@ -622,6 +623,8 @@ bool  SexyAppBase::GetControllerFreeCursor()           { return gFreeCursor; }
 void  SexyAppBase::SetControllerFreeCursor(bool v)     { gFreeCursor = v; }
 bool  SexyAppBase::GetControllerCursorBoostEnabled()   { return gCursorBoostEnabled; }
 void  SexyAppBase::SetControllerCursorBoostEnabled(bool v) { gCursorBoostEnabled = v; }
+bool  SexyAppBase::GetControllerSwapXY()               { return gSwapXY; }
+void  SexyAppBase::SetControllerSwapXY(bool v)         { gSwapXY = v; }
 
 // If the gamepad cursor is over a lawn cell, returns its selector-box rect
 // (game space) so the caller draws a cell box instead of the pointer arrow.
@@ -678,6 +681,17 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 			bool aDown = theEvent.type == SDL_CONTROLLERBUTTONDOWN;
 			int x = (int)gCursorX;
 			int y = (int)gCursorY;
+
+			// Some handhelds label the face buttons the other way round, so
+			// swap the pair before anything acts on it.
+			Uint8 aButton = theEvent.cbutton.button;
+			if (gSwapXY)
+			{
+				if (aButton == SDL_CONTROLLER_BUTTON_X)
+					aButton = SDL_CONTROLLER_BUTTON_Y;
+				else if (aButton == SDL_CONTROLLER_BUTTON_Y)
+					aButton = SDL_CONTROLLER_BUTTON_X;
+			}
 
 
 			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_A)
@@ -739,14 +753,14 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 			}
 
 			// X: context action (open store / whack hammer / slot machine lever).
-			if (aDown && theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_X)
+			if (aDown && aButton == SDL_CONTROLLER_BUTTON_X)
 			{
 				mWidgetManager->KeyDown(KEYCODE_GAMEPAD_CONTEXT);
 				return true;
 			}
 
 			// Y: Zen Garden helper (wake Stinky).
-			if (aDown && theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_Y)
+			if (aDown && aButton == SDL_CONTROLLER_BUTTON_Y)
 			{
 				mWidgetManager->KeyDown(KEYCODE_GAMEPAD_ZEN);
 				return true;

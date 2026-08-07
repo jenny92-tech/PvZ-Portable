@@ -25,8 +25,10 @@ it passes.
 ## In-game settings
 
 The options menu has a **Controller** entry with cursor speed, the auto-collect
-radius, a free-cursor toggle (off: the cursor snaps to lawn cells; on: it stays
-where you leave it), and a toggle for the R2/L3 speed-up. Settings are saved.
+radius, a free-cursor toggle (off: the cursor is held on the lawn during normal
+play; on: it may reach the whole screen), a toggle for the R2/L3 speed-up, and
+an X/Y swap for pads whose face buttons are labelled the other way round.
+Settings are saved.
 
 ## Credits
 

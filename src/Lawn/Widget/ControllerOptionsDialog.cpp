@@ -45,6 +45,8 @@ ControllerOptionsDialog::ControllerOptionsDialog(LawnApp* theApp) :
 		ControllerOptionsDialog::ControllerOptionsDialog_FreeCursor, this, theApp->GetControllerFreeCursor());
 	mFastForwardCheckbox = MakeNewCheckbox(
 		ControllerOptionsDialog::ControllerOptionsDialog_FastForward, this, theApp->GetControllerCursorBoostEnabled());
+	mSwapXYCheckbox = MakeNewCheckbox(
+		ControllerOptionsDialog::ControllerOptionsDialog_SwapXY, this, theApp->GetControllerSwapXY());
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -71,6 +73,7 @@ ControllerOptionsDialog::~ControllerOptionsDialog()
 	delete mSunRadiusSlider;
 	delete mFreeCursorCheckbox;
 	delete mFastForwardCheckbox;
+	delete mSwapXYCheckbox;
 	delete mBackButton;
 }
 
@@ -87,6 +90,7 @@ void ControllerOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManag
 	AddWidget(mSunRadiusSlider);
 	AddWidget(mFreeCursorCheckbox);
 	AddWidget(mFastForwardCheckbox);
+	AddWidget(mSwapXYCheckbox);
 	AddWidget(mBackButton);
 }
 
@@ -97,6 +101,7 @@ void ControllerOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetM
 	RemoveWidget(mSunRadiusSlider);
 	RemoveWidget(mFreeCursorCheckbox);
 	RemoveWidget(mFastForwardCheckbox);
+	RemoveWidget(mSwapXYCheckbox);
 	RemoveWidget(mBackButton);
 }
 
@@ -107,6 +112,7 @@ void ControllerOptionsDialog::Resize(int theX, int theY, int theWidth, int theHe
 	mSunRadiusSlider->Resize(199, 143, 135, 40);
 	mFreeCursorCheckbox->Resize(283, 175, 46, 45);
 	mFastForwardCheckbox->Resize(284, 206, 46, 45);
+	mSwapXYCheckbox->Resize(284, 237, 46, 45);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -132,6 +138,9 @@ void ControllerOptionsDialog::Draw(Sexy::Graphics* g)
 	PvzpDrawString(g, aCN ? "收集范围" : "Sun Range", 186, 167, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, aCN ? "自由移动" : "Free Cursor", 274, 197, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, aCN ? "R2/L3 二倍速" : "R2/L3 = 2x Cursor", 274, 229, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+	// ASCII only: the pak fonts carry no glyphs the stock game never used, and
+	// an arrow between the two letters needs no translating either way.
+	PvzpDrawString(g, "X <-> Y", 274, 261, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 }
 
 void ControllerOptionsDialog::SliderVal(int theId, double theVal)
@@ -156,6 +165,9 @@ void ControllerOptionsDialog::CheckboxChecked(int theId, bool checked)
 		break;
 	case ControllerOptionsDialog::ControllerOptionsDialog_FastForward:
 		mApp->SetControllerCursorBoostEnabled(checked);
+		break;
+	case ControllerOptionsDialog::ControllerOptionsDialog_SwapXY:
+		mApp->SetControllerSwapXY(checked);
 		break;
 	}
 }
