@@ -85,7 +85,9 @@ jobs:
         cp /usr/lib/aarch64-linux-gnu/gconv/gconv-modules dist/pvz_portable/gconv/
         cp portmaster/PvzPortable.sh dist/
         chmod 755 dist/PvzPortable.sh
+        cp portmaster/port.json portmaster/gameinfo.xml portmaster/README.md dist/
         cp portmaster/PvzPortable.gptk dist/pvz_portable/
+        cp -r portmaster/licenses dist/pvz_portable/
         cp build/pvz-portable dist/pvz_portable/pvz_portable.aarch64
         strip dist/pvz_portable/pvz_portable.aarch64
         chmod +x dist/pvz_portable/pvz_portable.aarch64
