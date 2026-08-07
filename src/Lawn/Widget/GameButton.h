@@ -97,6 +97,8 @@ public:
 class LawnStoneButton : public DialogButton
 {
 public:
+	Color					mLabelColor = Color::White;	// tints the label; red marks a destructive action
+
 	LawnStoneButton(Image* theComponentImage, int theId, ButtonListener* theListener) : DialogButton(theComponentImage, theId, theListener) { }
 
 	void					Draw(Graphics* g) override;
@@ -125,6 +127,6 @@ public:
 
 std::unique_ptr<LawnStoneButton>	MakeButton(int theId, ButtonListener* theListener, std::string_view theText);
 std::unique_ptr<NewLawnButton>	MakeNewButton(int theId, ButtonListener* theListener, std::string_view theText, _Font* theFont, Image* theImageNormal, Image* theImageOver, Image* theImageDown);
-void						DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, bool isDown, bool isHighLighted, const std::string& theLabel);
+void						DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, bool isDown, bool isHighLighted, const std::string& theLabel, const Color& theColor = Color::White);
 
 #endif
