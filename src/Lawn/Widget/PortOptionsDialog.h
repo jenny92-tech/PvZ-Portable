@@ -11,8 +11,8 @@
  * (at your option) any later version.
  */
 
-#ifndef __CONTROLLERHELPDIALOG_H__
-#define __CONTROLLERHELPDIALOG_H__
+#ifndef __PORTOPTIONSDIALOG_H__
+#define __PORTOPTIONSDIALOG_H__
 
 #include "widget/Dialog.h"
 
@@ -20,27 +20,28 @@ class LawnApp;
 class NewLawnButton;
 class LawnStoneButton;
 
-// Lists what the gamepad buttons do. Shown once when a pad is first seen, and
-// available from the controller settings after that.
-class ControllerHelpDialog : public Sexy::Dialog
+// Everything this port adds lives behind one entry in the game's options, so
+// the original screen gains a single button no matter how much is added here.
+class PortOptionsDialog : public Sexy::Dialog
 {
 protected:
 	enum
 	{
-		ControllerHelpDialog_Settings = 100,
+		PortOptionsDialog_Controller = 100,
+		PortOptionsDialog_Cheats,
+		PortOptionsDialog_Controls,
 	};
 
 public:
 	LawnApp*				mApp;
-	LawnStoneButton*		mSettingsButton;	// only on the card shown by itself
+	LawnStoneButton*		mControllerButton;
+	LawnStoneButton*		mCheatsButton;
+	LawnStoneButton*		mControlsButton;
 	NewLawnButton*			mBackButton;
 
 public:
-	// theOfferSettings adds a way through to the controller settings, for the
-	// card that appears on its own -- the one opened from those settings does
-	// not, so the two cannot lead back and forth into each other.
-	ControllerHelpDialog(LawnApp* theApp, bool theOfferSettings);
-	~ControllerHelpDialog() override;
+	explicit PortOptionsDialog(LawnApp* theApp);
+	~PortOptionsDialog() override;
 
 	int						GetPreferredHeight(int theWidth) override;
 	void					AddedToManager(Sexy::WidgetManager* theWidgetManager) override;
