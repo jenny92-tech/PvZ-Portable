@@ -29,6 +29,7 @@
 #include "Lawn/Board.h"
 #include "Lawn/Coin.h"
 #include "Lawn/Widget/ControllerOptionsDialog.h"
+#include "Lawn/Widget/ControllerHelpDialog.h"
 #include <cstdlib>
 #include "Lawn/Plant.h"
 #include "Lawn/Zombie.h"
@@ -326,6 +327,7 @@ void LawnApp::WriteToRegistry()
 	RegistryWriteBoolean("GamepadFreeCursor", GetControllerFreeCursor());
 	RegistryWriteBoolean("GamepadCursorBoost", GetControllerCursorBoostEnabled());
 	RegistryWriteBoolean("GamepadSwapXY", GetControllerSwapXY());
+	RegistryWriteBoolean("GamepadHelpShown", mControllerHelpShown);
 
 	SexyAppBase::WriteToRegistry();
 }
@@ -350,6 +352,8 @@ void LawnApp::ReadFromRegistry()
 		SetControllerCursorBoostEnabled(aBool);
 	if (RegistryReadBoolean("GamepadSwapXY", &aBool))
 		SetControllerSwapXY(aBool);
+	if (RegistryReadBoolean("GamepadHelpShown", &aBool))
+		mControllerHelpShown = aBool;
 }
 
 bool LawnApp::WriteCurrentUserConfig()
@@ -496,6 +500,8 @@ void LawnApp::ShowGameSelector()
 	mWidgetManager->AddWidget(mGameSelector.get());
 	mWidgetManager->BringToBack(mGameSelector.get());
 	mWidgetManager->SetFocus(mGameSelector.get());
+
+	ShowControllerHelpOnce();
 
 	//if (NeedRegister())
 	//{
@@ -1939,6 +1945,26 @@ ControllerOptionsDialog* LawnApp::DoControllerOptionsDialog()
 	AddDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS, aDialog);
 	mWidgetManager->SetFocus(aDialog);
 	return aDialog;
+}
+
+ControllerHelpDialog* LawnApp::DoControllerHelpDialog()
+{
+	ControllerHelpDialog* aDialog = new ControllerHelpDialog(this);
+	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
+	AddDialog(Dialogs::DIALOG_CONTROLLER_HELP, aDialog);
+	mWidgetManager->SetFocus(aDialog);
+	return aDialog;
+}
+
+// The first time the game runs with a gamepad, show what the buttons do --
+// nothing else on screen says so, and the port is played from a pad.
+void LawnApp::ShowControllerHelpOnce()
+{
+	if (!IsControllerActive() || mControllerHelpShown)
+		return;
+	mControllerHelpShown = true;
+	WriteToRegistry();
+	DoControllerHelpDialog();
 }
 
 void LawnApp::ButtonPress(int) {}
