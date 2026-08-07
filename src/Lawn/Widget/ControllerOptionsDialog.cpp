@@ -46,10 +46,13 @@ ControllerOptionsDialog::ControllerOptionsDialog(LawnApp* theApp) :
 		ControllerOptionsDialog::ControllerOptionsDialog_FreeCursor, this, theApp->GetControllerFreeCursor());
 	mFastForwardCheckbox = MakeNewCheckbox(
 		ControllerOptionsDialog::ControllerOptionsDialog_FastForward, this, theApp->GetControllerCursorBoostEnabled());
+	mSwapABCheckbox = MakeNewCheckbox(
+		ControllerOptionsDialog::ControllerOptionsDialog_SwapAB, this, theApp->GetControllerSwapAB());
 	mSwapXYCheckbox = MakeNewCheckbox(
 		ControllerOptionsDialog::ControllerOptionsDialog_SwapXY, this, theApp->GetControllerSwapXY());
 
-	mHelpButton = MakeButton(ControllerOptionsDialog::ControllerOptionsDialog_Help, this, "Controls");
+	mHelpButton = MakeButton(ControllerOptionsDialog::ControllerOptionsDialog_Help, this,
+		IsLocalizedUI(theApp) ? "手柄按钮" : "Controls");
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -76,6 +79,7 @@ ControllerOptionsDialog::~ControllerOptionsDialog()
 	delete mSunRadiusSlider;
 	delete mFreeCursorCheckbox;
 	delete mFastForwardCheckbox;
+	delete mSwapABCheckbox;
 	delete mSwapXYCheckbox;
 	delete mHelpButton;
 	delete mBackButton;
@@ -94,6 +98,7 @@ void ControllerOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManag
 	AddWidget(mSunRadiusSlider);
 	AddWidget(mFreeCursorCheckbox);
 	AddWidget(mFastForwardCheckbox);
+	AddWidget(mSwapABCheckbox);
 	AddWidget(mSwapXYCheckbox);
 	AddWidget(mHelpButton);
 	AddWidget(mBackButton);
@@ -106,6 +111,7 @@ void ControllerOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetM
 	RemoveWidget(mSunRadiusSlider);
 	RemoveWidget(mFreeCursorCheckbox);
 	RemoveWidget(mFastForwardCheckbox);
+	RemoveWidget(mSwapABCheckbox);
 	RemoveWidget(mSwapXYCheckbox);
 	RemoveWidget(mHelpButton);
 	RemoveWidget(mBackButton);
@@ -118,8 +124,9 @@ void ControllerOptionsDialog::Resize(int theX, int theY, int theWidth, int theHe
 	mSunRadiusSlider->Resize(199, 143, 135, 40);
 	mFreeCursorCheckbox->Resize(283, 175, 46, 45);
 	mFastForwardCheckbox->Resize(284, 206, 46, 45);
-	mSwapXYCheckbox->Resize(284, 237, 46, 45);
-	mHelpButton->Resize(107, 292, 209, 46);
+	mSwapABCheckbox->Resize(284, 235, 46, 45);
+	mSwapXYCheckbox->Resize(284, 263, 46, 45);
+	mHelpButton->Resize(107, 316, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -147,7 +154,8 @@ void ControllerOptionsDialog::Draw(Sexy::Graphics* g)
 	PvzpDrawString(g, aCN ? "R2/L3 二倍速" : "R2/L3 = 2x Cursor", 274, 229, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	// ASCII only: the pak fonts carry no glyphs the stock game never used, and
 	// an arrow between the two letters needs no translating either way.
-	PvzpDrawString(g, "X <-> Y", 274, 261, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+	PvzpDrawString(g, "A <-> B", 274, 259, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+	PvzpDrawString(g, "X <-> Y", 274, 287, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 }
 
 void ControllerOptionsDialog::SliderVal(int theId, double theVal)
@@ -172,6 +180,9 @@ void ControllerOptionsDialog::CheckboxChecked(int theId, bool checked)
 		break;
 	case ControllerOptionsDialog::ControllerOptionsDialog_FastForward:
 		mApp->SetControllerCursorBoostEnabled(checked);
+		break;
+	case ControllerOptionsDialog::ControllerOptionsDialog_SwapAB:
+		mApp->SetControllerSwapAB(checked);
 		break;
 	case ControllerOptionsDialog::ControllerOptionsDialog_SwapXY:
 		mApp->SetControllerSwapXY(checked);
@@ -198,7 +209,7 @@ void ControllerOptionsDialog::ButtonDepress(int theId)
 {
 	if (theId == ControllerOptionsDialog::ControllerOptionsDialog_Help)
 	{
-		ControllerHelpDialog* aDialog = mApp->DoControllerHelpDialog();
+		ControllerHelpDialog* aDialog = mApp->DoControllerHelpDialog(false);
 		aDialog->WaitForResult(true);
 		mApp->KillDialog(Dialogs::DIALOG_CONTROLLER_HELP);
 		return;

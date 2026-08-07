@@ -38,11 +38,15 @@ static const HelpRow kRows[] = {
 	{ "START",  "暂停",        "Pause"           },
 };
 
-ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp) :
+ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSettings) :
 	Dialog(nullptr, nullptr, Dialogs::DIALOG_CONTROLLER_HELP, true, "Controls", "", "", Dialog::BUTTONS_NONE)
 {
 	mApp = theApp;
 	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
+
+	mSettingsButton = MakeButton(ControllerHelpDialog::ControllerHelpDialog_Settings, this,
+		IsLocalizedUI(theApp) ? "手柄设置" : "Settings");
+	mSettingsButton->SetVisible(theOfferSettings);
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -65,6 +69,7 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp) :
 
 ControllerHelpDialog::~ControllerHelpDialog()
 {
+	delete mSettingsButton;
 	delete mBackButton;
 }
 
@@ -77,18 +82,21 @@ int ControllerHelpDialog::GetPreferredHeight(int theWidth)
 void ControllerHelpDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
+	AddWidget(mSettingsButton);
 	AddWidget(mBackButton);
 }
 
 void ControllerHelpDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::RemovedFromManager(theWidgetManager);
+	RemoveWidget(mSettingsButton);
 	RemoveWidget(mBackButton);
 }
 
 void ControllerHelpDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
 	Dialog::Resize(theX, theY, theWidth, theHeight);
+	mSettingsButton->Resize(107, 330, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -129,6 +137,14 @@ void ControllerHelpDialog::ButtonPress(int theId)
 
 void ControllerHelpDialog::ButtonDepress(int theId)
 {
+	if (theId == ControllerHelpDialog::ControllerHelpDialog_Settings)
+	{
+		// Close this card first, so the settings do not stack on top of it.
+		Dialog::ButtonDepress(Dialog::ID_OK);
+		mApp->mWantControllerSettings = true;
+		return;
+	}
+
 	Dialog::ButtonDepress(theId);
 	if (theId == Dialog::ID_OK)
 		mApp->WriteToRegistry();	// remember that the controls have been shown

@@ -373,6 +373,7 @@ float				gSensitivity = 1.0f;			// [0.5, 2.0]
 float				gSunRadius = 220.0f;			// auto-collect radius px, [60, 640]
 bool				gFreeCursor = false;			// false = confine the cursor to the lawn during normal play; true = let it roam the screen
 bool				gCursorBoostEnabled = true;		// whether R2/L3 speed the cursor up
+bool				gSwapAB = false;				// swap A and B, for pads whose face buttons are labelled the other way round
 bool				gSwapXY = false;				// swap X and Y, for pads whose face buttons are labelled the other way round
 const int			kStickDeadzone = 6553;	// ~0.2 * 32767
 const int			kTriggerThreshold = 16384;	// half pull counts as pressed
@@ -623,6 +624,8 @@ bool  SexyAppBase::GetControllerFreeCursor()           { return gFreeCursor; }
 void  SexyAppBase::SetControllerFreeCursor(bool v)     { gFreeCursor = v; }
 bool  SexyAppBase::GetControllerCursorBoostEnabled()   { return gCursorBoostEnabled; }
 void  SexyAppBase::SetControllerCursorBoostEnabled(bool v) { gCursorBoostEnabled = v; }
+bool  SexyAppBase::GetControllerSwapAB()               { return gSwapAB; }
+void  SexyAppBase::SetControllerSwapAB(bool v)         { gSwapAB = v; }
 bool  SexyAppBase::GetControllerSwapXY()               { return gSwapXY; }
 void  SexyAppBase::SetControllerSwapXY(bool v)         { gSwapXY = v; }
 
@@ -685,6 +688,13 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 			// Some handhelds label the face buttons the other way round, so
 			// swap the pair before anything acts on it.
 			Uint8 aButton = theEvent.cbutton.button;
+			if (gSwapAB)
+			{
+				if (aButton == SDL_CONTROLLER_BUTTON_A)
+					aButton = SDL_CONTROLLER_BUTTON_B;
+				else if (aButton == SDL_CONTROLLER_BUTTON_B)
+					aButton = SDL_CONTROLLER_BUTTON_A;
+			}
 			if (gSwapXY)
 			{
 				if (aButton == SDL_CONTROLLER_BUTTON_X)
@@ -694,7 +704,7 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 			}
 
 
-			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_A)
+			if (aButton == SDL_CONTROLLER_BUTTON_A)
 			{
 				// A: commit the highlighted seed (KEYCODE_GAMEPAD_PLANT lets the
 				// game pick it up first), then click at the cursor -- which plants
@@ -719,7 +729,7 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 				return true;
 			}
 
-			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_B)
+			if (aButton == SDL_CONTROLLER_BUTTON_B)
 			{
 				// B in-game: Board decides -- cancel a held item, else grab the
 				// shovel. Elsewhere: right-click at the cursor.

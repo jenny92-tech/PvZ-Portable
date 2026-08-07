@@ -18,17 +18,28 @@
 
 class LawnApp;
 class NewLawnButton;
+class LawnStoneButton;
 
 // Lists what the gamepad buttons do. Shown once when a pad is first seen, and
 // available from the controller settings after that.
 class ControllerHelpDialog : public Sexy::Dialog
 {
+protected:
+	enum
+	{
+		ControllerHelpDialog_Settings = 100,
+	};
+
 public:
 	LawnApp*				mApp;
+	LawnStoneButton*		mSettingsButton;	// only on the card shown by itself
 	NewLawnButton*			mBackButton;
 
 public:
-	explicit ControllerHelpDialog(LawnApp* theApp);
+	// theOfferSettings adds a way through to the controller settings, for the
+	// card that appears on its own -- the one opened from those settings does
+	// not, so the two cannot lead back and forth into each other.
+	ControllerHelpDialog(LawnApp* theApp, bool theOfferSettings);
 	~ControllerHelpDialog() override;
 
 	int						GetPreferredHeight(int theWidth) override;
