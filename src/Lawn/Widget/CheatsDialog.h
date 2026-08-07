@@ -19,6 +19,7 @@
 
 class LawnApp;
 class NewLawnButton;
+class LawnStoneButton;
 namespace Sexy
 {
 	class Checkbox;
@@ -33,12 +34,18 @@ protected:
 	{
 		CheatsDialog_FreePlanting,
 		CheatsDialog_InfiniteSun,
+		CheatsDialog_SlowMo,
+		CheatsDialog_Coins = 100,
+		CheatsDialog_WinLevel,
 	};
 
 public:
 	LawnApp*				mApp;
 	Sexy::Checkbox*			mFreePlantingCheckbox;
 	Sexy::Checkbox*			mInfiniteSunCheckbox;
+	Sexy::Checkbox*			mSlowMoCheckbox;
+	LawnStoneButton*		mCoinsButton;
+	LawnStoneButton*		mWinLevelButton;
 	NewLawnButton*			mBackButton;
 
 public:
@@ -52,6 +59,7 @@ public:
 	void					Draw(Sexy::Graphics* g) override;
 	void					CheckboxChecked(int theId, bool checked) override;
 	void					ButtonPress(int theId) override;
+	void					ButtonDepress(int theId) override;
 	void					KeyDown(Sexy::KeyCode theKey) override;
 };
 

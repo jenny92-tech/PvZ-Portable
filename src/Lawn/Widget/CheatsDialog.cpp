@@ -20,6 +20,8 @@
 #include "../../ConstEnums.h"
 #include "widget/Checkbox.h"
 #include "../../PvzpLib/PvzpCommon.h"
+#include "../Board.h"
+#include "../System/PlayerInfo.h"
 
 using namespace Sexy;
 
@@ -33,6 +35,16 @@ CheatsDialog::CheatsDialog(LawnApp* theApp) :
 		CheatsDialog::CheatsDialog_FreePlanting, this, theApp->mEasyPlantingCheat);
 	mInfiniteSunCheckbox = MakeNewCheckbox(
 		CheatsDialog::CheatsDialog_InfiniteSun, this, theApp->mInfiniteSunCheat);
+	mSlowMoCheckbox = MakeNewCheckbox(
+		CheatsDialog::CheatsDialog_SlowMo, this, gSlowMo);
+
+	bool aCN = IsLocalizedUI(theApp);
+	mCoinsButton = MakeButton(CheatsDialog::CheatsDialog_Coins, this,
+		aCN ? "增加金币" : "Add coins");
+	// Red: this one advances adventure progress and cannot be taken back.
+	mWinLevelButton = MakeButton(CheatsDialog::CheatsDialog_WinLevel, this,
+		aCN ? "立即过关" : "Win level");
+	mWinLevelButton->mLabelColor = Color(255, 120, 120);
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -57,6 +69,9 @@ CheatsDialog::~CheatsDialog()
 {
 	delete mFreePlantingCheckbox;
 	delete mInfiniteSunCheckbox;
+	delete mSlowMoCheckbox;
+	delete mCoinsButton;
+	delete mWinLevelButton;
 	delete mBackButton;
 }
 
@@ -71,6 +86,9 @@ void CheatsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 	Dialog::AddedToManager(theWidgetManager);
 	AddWidget(mFreePlantingCheckbox);
 	AddWidget(mInfiniteSunCheckbox);
+	AddWidget(mSlowMoCheckbox);
+	AddWidget(mCoinsButton);
+	AddWidget(mWinLevelButton);
 	AddWidget(mBackButton);
 }
 
@@ -79,14 +97,20 @@ void CheatsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 	Dialog::RemovedFromManager(theWidgetManager);
 	RemoveWidget(mFreePlantingCheckbox);
 	RemoveWidget(mInfiniteSunCheckbox);
+	RemoveWidget(mSlowMoCheckbox);
+	RemoveWidget(mCoinsButton);
+	RemoveWidget(mWinLevelButton);
 	RemoveWidget(mBackButton);
 }
 
 void CheatsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
 	Dialog::Resize(theX, theY, theWidth, theHeight);
-	mFreePlantingCheckbox->Resize(284, 150, 46, 45);
-	mInfiniteSunCheckbox->Resize(284, 200, 46, 45);
+	mFreePlantingCheckbox->Resize(284, 132, 46, 45);
+	mInfiniteSunCheckbox->Resize(284, 172, 46, 45);
+	mSlowMoCheckbox->Resize(284, 212, 46, 45);
+	mCoinsButton->Resize(107, 262, 209, 46);
+	mWinLevelButton->Resize(107, 318, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -96,9 +120,11 @@ void CheatsDialog::Draw(Sexy::Graphics* g)
 
 	Sexy::Color aTextColor(107, 109, 145);
 	bool aCN = IsLocalizedUI(mApp);
-	PvzpDrawString(g, aCN ? "免费种植" : "Free planting", 274, 174, FONT_DWARVENTODCRAFT18,
+	PvzpDrawString(g, aCN ? "免费种植" : "Free planting", 274, 156, FONT_DWARVENTODCRAFT18,
 				   aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-	PvzpDrawString(g, aCN ? "无限阳光" : "Infinite sun", 274, 224, FONT_DWARVENTODCRAFT18,
+	PvzpDrawString(g, aCN ? "无限阳光" : "Infinite sun", 274, 196, FONT_DWARVENTODCRAFT18,
+				   aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+	PvzpDrawString(g, aCN ? "慢动作" : "Slow motion", 274, 236, FONT_DWARVENTODCRAFT18,
 				   aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 }
 
@@ -112,6 +138,10 @@ void CheatsDialog::CheckboxChecked(int theId, bool checked)
 	case CheatsDialog::CheatsDialog_InfiniteSun:
 		mApp->mInfiniteSunCheat = checked;
 		break;
+	case CheatsDialog::CheatsDialog_SlowMo:
+		if (checked != gSlowMo)
+			mApp->ToggleSlowMo();	// the game's own quarter-speed cheat
+		break;
 	}
 }
 
@@ -122,6 +152,28 @@ void CheatsDialog::KeyDown(Sexy::KeyCode theKey)
 	{
 		Dialog::ButtonDepress(Dialog::ID_OK);
 	}
+}
+
+void CheatsDialog::ButtonDepress(int theId)
+{
+	switch (theId)
+	{
+	case CheatsDialog::CheatsDialog_Coins:
+		mApp->mPlayerInfo->AddCoins(100);
+		if (mApp->mBoard != nullptr)
+			mApp->mBoard->ShowCoinBank();
+		return;
+	case CheatsDialog::CheatsDialog_WinLevel:
+		if (mApp->mBoard != nullptr && mApp->mGameScene == GameScenes::SCENE_PLAYING)
+		{
+			mApp->mBoardResult = BoardResult::BOARDRESULT_CHEAT;
+			Dialog::ButtonDepress(Dialog::ID_OK);	// close, the level is ending
+			mApp->mBoard->mLevelComplete = true;
+		}
+		return;
+	}
+
+	Dialog::ButtonDepress(theId);
 }
 
 void CheatsDialog::ButtonPress(int theId)

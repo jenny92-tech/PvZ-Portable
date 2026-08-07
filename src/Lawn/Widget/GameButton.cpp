@@ -31,7 +31,7 @@
 
 static Color gGameButtonColors[6] = { Color(0, 0, 0), Color(0, 0, 0), Color(0, 0, 0), Color(255, 255, 255), Color(132, 132, 132), Color(212, 212, 212) };
 
-void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, bool isDown, bool isHighLighted, const std::string& theLabel)
+void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, bool isDown, bool isHighLighted, const std::string& theLabel, const Color& theColor)
 {
 	Image* aLeftImage = Sexy::IMAGE_BUTTON_LEFT;
 	Image* aMiddleImage = Sexy::IMAGE_BUTTON_MIDDLE;
@@ -63,7 +63,7 @@ void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, boo
 	g->SetFont(isHighLighted ? Sexy::FONT_DWARVENTODCRAFT18BRIGHTGREENINSET : Sexy::FONT_DWARVENTODCRAFT18GREENINSET);
 	aFontX += (theWidth - Sexy::FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(theLabel)) / 2 + 1;
 	aFontY += (theHeight - Sexy::FONT_DWARVENTODCRAFT18GREENINSET->GetAscent() / 6 - 1 + Sexy::FONT_DWARVENTODCRAFT18GREENINSET->GetAscent()) / 2 - 4;
-	g->SetColor(Color::White);
+	g->SetColor(theColor);
 	g->DrawString(theLabel, aFontX, aFontY);
 }
 
@@ -292,7 +292,7 @@ void LawnStoneButton::Draw(Graphics* g)
 		return;
 
 	bool isDown = (mIsDown && mIsOver && !mDisabled) ^ mInverted;
-	DrawStoneButton(g, 0, 0, mWidth, mHeight, isDown, mIsOver, mLabel);
+	DrawStoneButton(g, 0, 0, mWidth, mHeight, isDown, mIsOver, mLabel, mLabelColor);
 }
 
 LawnStoneButton* MakeButton(int theId, ButtonListener* theListener, std::string_view theText)
