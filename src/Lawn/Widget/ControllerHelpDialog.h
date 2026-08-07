@@ -28,11 +28,13 @@ protected:
 	enum
 	{
 		ControllerHelpDialog_Settings = 100,
+		ControllerHelpDialog_Cheats,
 	};
 
 public:
 	LawnApp*				mApp;
 	LawnStoneButton*		mSettingsButton;	// only on the card shown by itself
+	LawnStoneButton*		mCheatsButton;
 	NewLawnButton*			mBackButton;
 
 public:
