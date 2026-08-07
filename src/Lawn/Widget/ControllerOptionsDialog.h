@@ -36,6 +36,7 @@ protected:
 		ControllerOptionsDialog_SunRadius,
 		ControllerOptionsDialog_FreeCursor,
 		ControllerOptionsDialog_FastForward,
+		ControllerOptionsDialog_SwapAB,
 		ControllerOptionsDialog_SwapXY,
 		ControllerOptionsDialog_Help,
 	};
@@ -46,6 +47,7 @@ public:
 	Sexy::Slider*			mSunRadiusSlider;
 	Sexy::Checkbox*			mFreeCursorCheckbox;
 	Sexy::Checkbox*			mFastForwardCheckbox;
+	Sexy::Checkbox*			mSwapABCheckbox;
 	Sexy::Checkbox*			mSwapXYCheckbox;
 	LawnStoneButton*		mHelpButton;
 	NewLawnButton*			mBackButton;

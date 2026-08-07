@@ -414,6 +414,7 @@ void LawnApp::WriteToRegistry()
 	RegistryWriteInteger("GamepadSunRadius", (int)GetControllerSunRadius());
 	RegistryWriteBoolean("GamepadFreeCursor", GetControllerFreeCursor());
 	RegistryWriteBoolean("GamepadCursorBoost", GetControllerCursorBoostEnabled());
+	RegistryWriteBoolean("GamepadSwapAB", GetControllerSwapAB());
 	RegistryWriteBoolean("GamepadSwapXY", GetControllerSwapXY());
 	RegistryWriteBoolean("GamepadHelpShown", mControllerHelpShown);
 
@@ -438,6 +439,8 @@ void LawnApp::ReadFromRegistry()
 		SetControllerFreeCursor(aBool);
 	if (RegistryReadBoolean("GamepadCursorBoost", &aBool))
 		SetControllerCursorBoostEnabled(aBool);
+	if (RegistryReadBoolean("GamepadSwapAB", &aBool))
+		SetControllerSwapAB(aBool);
 	if (RegistryReadBoolean("GamepadSwapXY", &aBool))
 		SetControllerSwapXY(aBool);
 	if (RegistryReadBoolean("GamepadHelpShown", &aBool))
@@ -2016,9 +2019,9 @@ ControllerOptionsDialog* LawnApp::DoControllerOptionsDialog()
 	return aDialog;
 }
 
-ControllerHelpDialog* LawnApp::DoControllerHelpDialog()
+ControllerHelpDialog* LawnApp::DoControllerHelpDialog(bool theOfferSettings)
 {
-	ControllerHelpDialog* aDialog = new ControllerHelpDialog(this);
+	ControllerHelpDialog* aDialog = new ControllerHelpDialog(this, theOfferSettings);
 	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
 	AddDialog(Dialogs::DIALOG_CONTROLLER_HELP, aDialog);
 	mWidgetManager->SetFocus(aDialog);
@@ -2033,7 +2036,20 @@ void LawnApp::ShowControllerHelpOnce()
 		return;
 	mControllerHelpShown = true;
 	WriteToRegistry();
-	DoControllerHelpDialog();
+
+	ControllerHelpDialog* aDialog = DoControllerHelpDialog(true);
+	aDialog->WaitForResult(true);
+	KillDialog(Dialogs::DIALOG_CONTROLLER_HELP);
+
+	// The card offers a way straight into the settings; open them once it is
+	// gone so the two never stack.
+	if (mWantControllerSettings)
+	{
+		mWantControllerSettings = false;
+		ControllerOptionsDialog* aSettings = DoControllerOptionsDialog();
+		aSettings->WaitForResult(true);
+		KillDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS);
+	}
 }
 
 void LawnApp::ButtonPress(int) {}

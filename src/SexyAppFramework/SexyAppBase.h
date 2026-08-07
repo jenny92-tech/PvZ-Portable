@@ -558,6 +558,8 @@ public:
 	void					SetControllerFreeCursor(bool theValue);
 	bool					GetControllerCursorBoostEnabled();
 	void					SetControllerCursorBoostEnabled(bool theValue);
+	bool					GetControllerSwapAB();
+	void					SetControllerSwapAB(bool theValue);
 	bool					GetControllerSwapXY();
 	void					SetControllerSwapXY(bool theValue);
 	// Overridden by the game to make the gamepad cursor board-aware. If (px,py)

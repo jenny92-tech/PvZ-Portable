@@ -219,6 +219,7 @@ public:
 	virtual void					UpdateRegisterInfo();
 	bool							ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) override;
 	void							ControllerAutoCollect(int thePx, int thePy) override;
+	bool							mWantControllerSettings = false;	// the controls card asked for the settings
 	bool							mControllerHelpShown = false;	// the button reference has been shown once
 	bool							ControllerInGame() override;
 	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;
@@ -252,7 +253,7 @@ public:
 	bool					IsChallengeWithoutSeedBank();
 	AlmanacDialog*					DoAlmanacDialog(SeedType theSeedType = SeedType::SEED_NONE, ZombieType theZombieType = ZombieType::ZOMBIE_INVALID);
 	ControllerOptionsDialog*		DoControllerOptionsDialog();
-	ControllerHelpDialog*			DoControllerHelpDialog();
+	ControllerHelpDialog*			DoControllerHelpDialog(bool theOfferSettings);
 	void							ShowControllerHelpOnce();
 	bool							KillAlmanacDialog();
 	int								GetSeedsAvailable();
