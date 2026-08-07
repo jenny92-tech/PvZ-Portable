@@ -51,6 +51,7 @@ class AlmanacDialog;
 class ControllerOptionsDialog;
 class ControllerHelpDialog;
 class CheatsDialog;
+class PortOptionsDialog;
 class TypingCheck;
 
 namespace Sexy
@@ -255,6 +256,7 @@ public:
 	ControllerOptionsDialog*		DoControllerOptionsDialog();
 	ControllerHelpDialog*			DoControllerHelpDialog(bool theOfferSettings);
 	CheatsDialog*					DoCheatsDialog();
+	PortOptionsDialog*				DoPortOptionsDialog();
 	void							ShowControllerHelpOnce();
 	bool							KillAlmanacDialog();
 	int								GetSeedsAvailable();

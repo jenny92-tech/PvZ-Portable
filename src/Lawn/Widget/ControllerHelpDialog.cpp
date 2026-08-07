@@ -45,11 +45,9 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSetting
 	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
 
 	mSettingsButton = MakeButton(ControllerHelpDialog::ControllerHelpDialog_Settings, this,
-		IsLocalizedUI(theApp) ? "手柄设置" : "Settings");
+		IsLocalizedUI(theApp) ? "移植设置" : "Port Options");
 	mSettingsButton->SetVisible(theOfferSettings);
 
-	mCheatsButton = MakeButton(ControllerHelpDialog::ControllerHelpDialog_Cheats, this,
-		IsLocalizedUI(theApp) ? "作弊" : "Cheats");
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -73,7 +71,6 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSetting
 ControllerHelpDialog::~ControllerHelpDialog()
 {
 	delete mSettingsButton;
-	delete mCheatsButton;
 	delete mBackButton;
 }
 
@@ -87,7 +84,6 @@ void ControllerHelpDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
 	AddWidget(mSettingsButton);
-	AddWidget(mCheatsButton);
 	AddWidget(mBackButton);
 }
 
@@ -95,23 +91,14 @@ void ControllerHelpDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetMana
 {
 	Dialog::RemovedFromManager(theWidgetManager);
 	RemoveWidget(mSettingsButton);
-	RemoveWidget(mCheatsButton);
 	RemoveWidget(mBackButton);
 }
 
 void ControllerHelpDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
 	Dialog::Resize(theX, theY, theWidth, theHeight);
-	// Rows end at 304; keep the buttons clear of them and of the OK button.
-	if (mSettingsButton->mVisible)
-	{
-		mSettingsButton->Resize(107, 316, 102, 46);
-		mCheatsButton->Resize(214, 316, 102, 46);
-	}
-	else
-	{
-		mCheatsButton->Resize(107, 316, 209, 46);
-	}
+	// Rows end at 304, so the button sits clear of them and of the OK button.
+	mSettingsButton->Resize(107, 316, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -152,14 +139,6 @@ void ControllerHelpDialog::ButtonPress(int theId)
 
 void ControllerHelpDialog::ButtonDepress(int theId)
 {
-	if (theId == ControllerHelpDialog::ControllerHelpDialog_Cheats)
-	{
-		// Close this card first, so the cheats do not stack on top of it.
-		Dialog::ButtonDepress(Dialog::ID_OK);
-		mApp->mWantCheats = true;
-		return;
-	}
-
 	if (theId == ControllerHelpDialog::ControllerHelpDialog_Settings)
 	{
 		// Close this card first, so the settings do not stack on top of it.

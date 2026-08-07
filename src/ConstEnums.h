@@ -323,6 +323,7 @@ enum Dialogs : int32_t
 	DIALOG_CONTROLLER_OPTIONS,                  // 53: controller settings
 	DIALOG_CONTROLLER_HELP,                     // 54: controller button reference
 	DIALOG_CHEATS,                              // 55: cheats
+	DIALOG_PORT_OPTIONS,                        // 56: this port's own settings
 	NUM_DIALOGS
 };
 enum DebugTextMode : int32_t
