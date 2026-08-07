@@ -460,3 +460,5 @@ build-*/
 # Local packaging output (Docker build staging)
 /dist/
 /dist-ctl/
+/dist-pm/
+/pvz_portable*.zip
