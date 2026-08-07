@@ -413,6 +413,7 @@ void LawnApp::WriteToRegistry()
 	RegistryWriteInteger("GamepadSunRadius", (int)GetControllerSunRadius());
 	RegistryWriteBoolean("GamepadFreeCursor", GetControllerFreeCursor());
 	RegistryWriteBoolean("GamepadCursorBoost", GetControllerCursorBoostEnabled());
+	RegistryWriteBoolean("GamepadSwapXY", GetControllerSwapXY());
 
 	SexyAppBase::WriteToRegistry();
 }
@@ -435,6 +436,8 @@ void LawnApp::ReadFromRegistry()
 		SetControllerFreeCursor(aBool);
 	if (RegistryReadBoolean("GamepadCursorBoost", &aBool))
 		SetControllerCursorBoostEnabled(aBool);
+	if (RegistryReadBoolean("GamepadSwapXY", &aBool))
+		SetControllerSwapXY(aBool);
 }
 
 bool LawnApp::WriteCurrentUserConfig()

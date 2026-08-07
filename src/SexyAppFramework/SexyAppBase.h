@@ -558,6 +558,8 @@ public:
 	void					SetControllerFreeCursor(bool theValue);
 	bool					GetControllerCursorBoostEnabled();
 	void					SetControllerCursorBoostEnabled(bool theValue);
+	bool					GetControllerSwapXY();
+	void					SetControllerSwapXY(bool theValue);
 	// Overridden by the game to make the gamepad cursor board-aware. If (px,py)
 	// is over a lawn cell, return true and the cell center + size (so the engine
 	// can magnetize the cursor and draw a cell selector box). Default: no board.
