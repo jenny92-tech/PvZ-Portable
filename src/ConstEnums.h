@@ -322,6 +322,7 @@ enum Dialogs : int32_t
 	DIALOG_ZOMBATAR_DELETE,                     // 52
 	DIALOG_CONTROLLER_OPTIONS,                  // 53: controller settings
 	DIALOG_CONTROLLER_HELP,                     // 54: controller button reference
+	DIALOG_CHEATS,                              // 55: cheats
 	NUM_DIALOGS
 };
 enum DebugTextMode : int32_t
