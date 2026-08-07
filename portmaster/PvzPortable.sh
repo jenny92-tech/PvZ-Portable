@@ -36,11 +36,6 @@ export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 export TEXTINPUTINTERACTIVE="Y"
 export XDG_DATA_HOME="$CONFDIR"
 
-# LawnStrings.txt in main.pak is UTF-16LE and is converted with iconv(). Some
-# handheld firmware (TrimUI) ships no glibc gconv modules, so use the bundled
-# UTF-16 converter when it is present.
-[ -d "$GAMEDIR/gconv" ] && export GCONV_PATH="$GAMEDIR/gconv"
-
 # Gamepad tuning. Uncomment and edit to override what the in-game controller
 # settings saved; the in-game values are used when these are unset.
 #export PVZ_CURSOR_SENSITIVITY=1.4   # cursor speed, 0.5-2.0
