@@ -16,6 +16,7 @@
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "ControllerOptionsDialog.h"
+#include "ControllerHelpDialog.h"
 #include "../../ConstEnums.h"
 #include "widget/Slider.h"
 #include "widget/Checkbox.h"
@@ -48,6 +49,8 @@ ControllerOptionsDialog::ControllerOptionsDialog(LawnApp* theApp) :
 	mSwapXYCheckbox = MakeNewCheckbox(
 		ControllerOptionsDialog::ControllerOptionsDialog_SwapXY, this, theApp->GetControllerSwapXY());
 
+	mHelpButton = MakeButton(ControllerOptionsDialog::ControllerOptionsDialog_Help, this, "Controls");
+
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
 		this,
@@ -74,6 +77,7 @@ ControllerOptionsDialog::~ControllerOptionsDialog()
 	delete mFreeCursorCheckbox;
 	delete mFastForwardCheckbox;
 	delete mSwapXYCheckbox;
+	delete mHelpButton;
 	delete mBackButton;
 }
 
@@ -91,6 +95,7 @@ void ControllerOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManag
 	AddWidget(mFreeCursorCheckbox);
 	AddWidget(mFastForwardCheckbox);
 	AddWidget(mSwapXYCheckbox);
+	AddWidget(mHelpButton);
 	AddWidget(mBackButton);
 }
 
@@ -102,6 +107,7 @@ void ControllerOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetM
 	RemoveWidget(mFreeCursorCheckbox);
 	RemoveWidget(mFastForwardCheckbox);
 	RemoveWidget(mSwapXYCheckbox);
+	RemoveWidget(mHelpButton);
 	RemoveWidget(mBackButton);
 }
 
@@ -113,6 +119,7 @@ void ControllerOptionsDialog::Resize(int theX, int theY, int theWidth, int theHe
 	mFreeCursorCheckbox->Resize(283, 175, 46, 45);
 	mFastForwardCheckbox->Resize(284, 206, 46, 45);
 	mSwapXYCheckbox->Resize(284, 237, 46, 45);
+	mHelpButton->Resize(107, 292, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -189,6 +196,14 @@ void ControllerOptionsDialog::ButtonPress(int theId)
 
 void ControllerOptionsDialog::ButtonDepress(int theId)
 {
+	if (theId == ControllerOptionsDialog::ControllerOptionsDialog_Help)
+	{
+		ControllerHelpDialog* aDialog = mApp->DoControllerHelpDialog();
+		aDialog->WaitForResult(true);
+		mApp->KillDialog(Dialogs::DIALOG_CONTROLLER_HELP);
+		return;
+	}
+
 	Dialog::ButtonDepress(theId);
 	if (theId == Dialog::ID_OK)
 		mApp->WriteToRegistry();	// persist the controller settings on close
