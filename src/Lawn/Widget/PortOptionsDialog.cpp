@@ -36,7 +36,7 @@ PortOptionsDialog::PortOptionsDialog(LawnApp* theApp) :
 	mCheatsButton = MakeButton(PortOptionsDialog::PortOptionsDialog_Cheats, this,
 		aCN ? "作弊设置" : "Cheats");
 	mControlsButton = MakeButton(PortOptionsDialog::PortOptionsDialog_Controls, this,
-		aCN ? "手柄按钮" : "Controls");
+		aCN ? "操作说明" : "Controls");
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
