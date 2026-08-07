@@ -24,6 +24,7 @@
 #include "../Cutscene.h"
 #include "AlmanacDialog.h"
 #include "ControllerOptionsDialog.h"
+#include "PortOptionsDialog.h"
 #include "../LawnCommon.h"
 #include "../../LawnApp.h"
 #include "../System/Music.h"
@@ -44,7 +45,7 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 	mFromGameSelector = theFromGameSelector;
 	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
 	mAlmanacButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Almanac, this, "[VIEW_ALMANAC_BUTTON]");
-	mControllerButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Controller, this, IsLocalizedUI(theApp) ? "手柄设置" : "Controller");
+	mControllerButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Controller, this, IsLocalizedUI(theApp) ? "移植设置" : "Port Options");
 	mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, "[RESTART_LEVEL]");
 	mBackToMainButton = MakeButton(NewOptionsDialog::NewOptionsDialog_MainMenu, this, "[MAIN_MENU_BUTTON]");
 
@@ -346,9 +347,9 @@ void NewOptionsDialog::ButtonDepress(int theId)
 
 	case NewOptionsDialog::NewOptionsDialog_Controller:
 	{
-		ControllerOptionsDialog* aDialog = mApp->DoControllerOptionsDialog();
+		PortOptionsDialog* aDialog = mApp->DoPortOptionsDialog();
 		aDialog->WaitForResult(true);
-		mApp->KillDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS);
+		mApp->KillDialog(Dialogs::DIALOG_PORT_OPTIONS);
 		break;
 	}
 

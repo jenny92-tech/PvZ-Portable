@@ -38,7 +38,6 @@ protected:
 		ControllerOptionsDialog_FastForward,
 		ControllerOptionsDialog_SwapAB,
 		ControllerOptionsDialog_SwapXY,
-		ControllerOptionsDialog_Help,
 	};
 
 public:
@@ -49,7 +48,6 @@ public:
 	Sexy::Checkbox*			mFastForwardCheckbox;
 	Sexy::Checkbox*			mSwapABCheckbox;
 	Sexy::Checkbox*			mSwapXYCheckbox;
-	LawnStoneButton*		mHelpButton;
 	NewLawnButton*			mBackButton;
 
 public:

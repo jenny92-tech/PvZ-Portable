@@ -28,6 +28,7 @@
 #include "Lawn/Widget/ControllerOptionsDialog.h"
 #include "Lawn/Widget/ControllerHelpDialog.h"
 #include "Lawn/Widget/CheatsDialog.h"
+#include "Lawn/Widget/PortOptionsDialog.h"
 #include <cstdlib>
 #include <cstring>
 #include "Lawn/Plant.h"
@@ -2060,16 +2061,9 @@ void LawnApp::ShowControllerHelpOnce()
 	if (mWantControllerSettings)
 	{
 		mWantControllerSettings = false;
-		ControllerOptionsDialog* aSettings = DoControllerOptionsDialog();
-		aSettings->WaitForResult(true);
-		KillDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS);
-	}
-	if (mWantCheats)
-	{
-		mWantCheats = false;
-		CheatsDialog* aCheats = DoCheatsDialog();
-		aCheats->WaitForResult(true);
-		KillDialog(Dialogs::DIALOG_CHEATS);
+		PortOptionsDialog* aPort = DoPortOptionsDialog();
+		aPort->WaitForResult(true);
+		KillDialog(Dialogs::DIALOG_PORT_OPTIONS);
 	}
 }
 
@@ -2078,6 +2072,15 @@ CheatsDialog* LawnApp::DoCheatsDialog()
 	CheatsDialog* aDialog = new CheatsDialog(this);
 	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
 	AddDialog(Dialogs::DIALOG_CHEATS, aDialog);
+	mWidgetManager->SetFocus(aDialog);
+	return aDialog;
+}
+
+PortOptionsDialog* LawnApp::DoPortOptionsDialog()
+{
+	PortOptionsDialog* aDialog = new PortOptionsDialog(this);
+	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
+	AddDialog(Dialogs::DIALOG_PORT_OPTIONS, aDialog);
 	mWidgetManager->SetFocus(aDialog);
 	return aDialog;
 }
