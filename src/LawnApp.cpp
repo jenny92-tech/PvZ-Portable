@@ -28,6 +28,7 @@
 #include "Lawn/Widget/ControllerOptionsDialog.h"
 #include "Lawn/Widget/ControllerHelpDialog.h"
 #include <cstdlib>
+#include <cstring>
 #include "Lawn/Plant.h"
 #include "Lawn/Zombie.h"
 #include "Lawn/Cutscene.h"
@@ -2032,10 +2033,22 @@ ControllerHelpDialog* LawnApp::DoControllerHelpDialog(bool theOfferSettings)
 // nothing else on screen says so, and the port is played from a pad.
 void LawnApp::ShowControllerHelpOnce()
 {
-	if (!IsControllerActive() || mControllerHelpShown)
+	if (!IsControllerActive())
 		return;
-	mControllerHelpShown = true;
-	WriteToRegistry();
+
+	// PVZ_SHOW_CONTROLS=1 shows the card on every launch instead of just the
+	// first, for looking it over without clearing the saved flag.
+	const char* aForce = getenv("PVZ_SHOW_CONTROLS");
+	bool aAlways = aForce != nullptr && aForce[0] != '\0' && strcmp(aForce, "0") != 0;
+
+	if (mControllerHelpShown && !aAlways)
+		return;
+
+	if (!mControllerHelpShown)
+	{
+		mControllerHelpShown = true;
+		WriteToRegistry();
+	}
 
 	ControllerHelpDialog* aDialog = DoControllerHelpDialog(true);
 	aDialog->WaitForResult(true);
