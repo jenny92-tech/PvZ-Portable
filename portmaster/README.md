@@ -27,8 +27,11 @@ it passes.
 The options menu has a **Controller** entry with cursor speed, the auto-collect
 radius, a free-cursor toggle (off: the cursor is held on the lawn during normal
 play; on: it may reach the whole screen), a toggle for the R2/L3 speed-up, and
-an X/Y swap for pads whose face buttons are labelled the other way round.
-Settings are saved.
+and A/B and X/Y swaps for pads whose face buttons are labelled the other way
+round. Settings are saved.
+
+The controls above are also shown in-game the first time you start with a pad
+connected, and from the **Controls** button in the controller settings.
 
 ## Credits
 
