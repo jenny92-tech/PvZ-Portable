@@ -20,6 +20,7 @@
 
 class LawnApp;
 class NewLawnButton;
+class LawnStoneButton;
 namespace Sexy
 {
 	class Slider;
@@ -36,6 +37,7 @@ protected:
 		ControllerOptionsDialog_FreeCursor,
 		ControllerOptionsDialog_FastForward,
 		ControllerOptionsDialog_SwapXY,
+		ControllerOptionsDialog_Help,
 	};
 
 public:
@@ -45,6 +47,7 @@ public:
 	Sexy::Checkbox*			mFreeCursorCheckbox;
 	Sexy::Checkbox*			mFastForwardCheckbox;
 	Sexy::Checkbox*			mSwapXYCheckbox;
+	LawnStoneButton*		mHelpButton;
 	NewLawnButton*			mBackButton;
 
 public:
