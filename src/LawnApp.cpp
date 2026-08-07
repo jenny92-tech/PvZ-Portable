@@ -419,7 +419,6 @@ void LawnApp::WriteToRegistry()
 	RegistryWriteBoolean("GamepadCursorBoost", GetControllerCursorBoostEnabled());
 	RegistryWriteBoolean("GamepadSwapAB", GetControllerSwapAB());
 	RegistryWriteBoolean("GamepadSwapXY", GetControllerSwapXY());
-	RegistryWriteBoolean("GamepadHelpShown", mControllerHelpShown);
 
 	SexyAppBase::WriteToRegistry();
 }
@@ -446,8 +445,6 @@ void LawnApp::ReadFromRegistry()
 		SetControllerSwapAB(aBool);
 	if (RegistryReadBoolean("GamepadSwapXY", &aBool))
 		SetControllerSwapXY(aBool);
-	if (RegistryReadBoolean("GamepadHelpShown", &aBool))
-		mControllerHelpShown = aBool;
 }
 
 bool LawnApp::WriteCurrentUserConfig()
@@ -2051,19 +2048,15 @@ void LawnApp::ShowControllerHelpOnce()
 	if (!IsControllerActive())
 		return;
 
-	// PVZ_SHOW_CONTROLS=1 shows the card on every launch instead of just the
-	// first, for looking it over without clearing the saved flag.
-	const char* aForce = getenv("PVZ_SHOW_CONTROLS");
-	bool aAlways = aForce != nullptr && aForce[0] != '\0' && strcmp(aForce, "0") != 0;
-
-	if (mControllerHelpShown && !aAlways)
+	// Shown once per launch: this is how the port is played, and the menu is
+	// reached again during a session, which should not bring it back.
+	// PVZ_SHOW_CONTROLS=0 turns it off for anyone who has read it enough.
+	const char* aWanted = getenv("PVZ_SHOW_CONTROLS");
+	if (aWanted != nullptr && strcmp(aWanted, "0") == 0)
 		return;
-
-	if (!mControllerHelpShown)
-	{
-		mControllerHelpShown = true;
-		WriteToRegistry();
-	}
+	if (mControllerHelpShown)
+		return;
+	mControllerHelpShown = true;
 
 	ControllerHelpDialog* aDialog = DoControllerHelpDialog(true);
 	aDialog->WaitForResult(true);

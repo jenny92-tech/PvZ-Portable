@@ -226,7 +226,7 @@ public:
 	int								mSlowMoCheatCounter = 0;
 	bool							mWantControllerSettings = false;
 	bool							mWantCheats = false;			// the controls card asked for the cheats	// the controls card asked for the settings
-	bool							mControllerHelpShown = false;	// the button reference has been shown once
+	bool							mControllerHelpShown = false;	// shown already this run; not saved, so it returns each launch
 	bool							ControllerInGame() override;
 	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;
 	void							ButtonPress(int theId) override;

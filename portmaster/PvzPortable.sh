@@ -40,7 +40,7 @@ export XDG_DATA_HOME="$CONFDIR"
 # settings saved; the in-game values are used when these are unset.
 #export PVZ_CURSOR_SENSITIVITY=1.4   # cursor speed, 0.5-2.0
 #export PVZ_SUN_RADIUS=220           # auto-collect radius in pixels, 60-640
-#export PVZ_SHOW_CONTROLS=1          # show the controls card on every launch
+#export PVZ_SHOW_CONTROLS=0          # stop showing the controls card at startup
 
 # Keep glibc's allocator lean on low-memory handhelds: no thread caches and a
 # low mmap threshold so freed pages actually return to the OS.
