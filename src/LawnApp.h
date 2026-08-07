@@ -222,6 +222,8 @@ public:
 	bool							ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) override;
 	void							ControllerAutoCollect(int thePx, int thePy) override;
 	bool							mInfiniteSunCheat = false;	// tops sun up while playing; not saved
+	bool							mSlowMoCheat = false;		// half speed; the game's own gSlowMo is a quarter, too slow to play
+	int								mSlowMoCheatCounter = 0;
 	bool							mWantControllerSettings = false;
 	bool							mWantCheats = false;			// the controls card asked for the cheats	// the controls card asked for the settings
 	bool							mControllerHelpShown = false;	// the button reference has been shown once

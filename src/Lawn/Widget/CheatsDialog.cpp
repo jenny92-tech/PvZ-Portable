@@ -36,7 +36,7 @@ CheatsDialog::CheatsDialog(LawnApp* theApp) :
 	mInfiniteSunCheckbox = MakeNewCheckbox(
 		CheatsDialog::CheatsDialog_InfiniteSun, this, theApp->mInfiniteSunCheat);
 	mSlowMoCheckbox = MakeNewCheckbox(
-		CheatsDialog::CheatsDialog_SlowMo, this, gSlowMo);
+		CheatsDialog::CheatsDialog_SlowMo, this, theApp->mSlowMoCheat);
 
 	bool aCN = IsLocalizedUI(theApp);
 	mCoinsButton = MakeButton(CheatsDialog::CheatsDialog_Coins, this,
@@ -139,8 +139,8 @@ void CheatsDialog::CheckboxChecked(int theId, bool checked)
 		mApp->mInfiniteSunCheat = checked;
 		break;
 	case CheatsDialog::CheatsDialog_SlowMo:
-		if (checked != gSlowMo)
-			mApp->ToggleSlowMo();	// the game's own quarter-speed cheat
+		mApp->mSlowMoCheat = checked;
+		mApp->mSlowMoCheatCounter = 0;
 		break;
 	}
 }
