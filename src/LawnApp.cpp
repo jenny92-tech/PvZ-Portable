@@ -1695,15 +1695,13 @@ void LawnApp::UpdateFrames()
 	}
 	else if (mSlowMoCheat)
 	{
-		// Half speed: run the logic every other frame. The game's own slow-mo
-		// runs it every fourth, which is slower than anyone wants to play at.
-		if (++mSlowMoCheatCounter < 2)
-		{
-			aUpdateCount = 0;
-		}
-		else
+		// A quarter slower: run the logic on three frames in four. The game's
+		// own slow-mo runs it on one in four, far slower than anyone wants to
+		// play at, and half speed still overshoots.
+		if (++mSlowMoCheatCounter >= 4)
 		{
 			mSlowMoCheatCounter = 0;
+			aUpdateCount = 0;
 		}
 	}
 
