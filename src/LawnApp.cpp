@@ -27,6 +27,7 @@
 #include "Lawn/Coin.h"
 #include "Lawn/Widget/ControllerOptionsDialog.h"
 #include "Lawn/Widget/ControllerHelpDialog.h"
+#include "Lawn/Widget/CheatsDialog.h"
 #include <cstdlib>
 #include <cstring>
 #include "Lawn/Plant.h"
@@ -2063,6 +2064,22 @@ void LawnApp::ShowControllerHelpOnce()
 		aSettings->WaitForResult(true);
 		KillDialog(Dialogs::DIALOG_CONTROLLER_OPTIONS);
 	}
+	if (mWantCheats)
+	{
+		mWantCheats = false;
+		CheatsDialog* aCheats = DoCheatsDialog();
+		aCheats->WaitForResult(true);
+		KillDialog(Dialogs::DIALOG_CHEATS);
+	}
+}
+
+CheatsDialog* LawnApp::DoCheatsDialog()
+{
+	CheatsDialog* aDialog = new CheatsDialog(this);
+	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
+	AddDialog(Dialogs::DIALOG_CHEATS, aDialog);
+	mWidgetManager->SetFocus(aDialog);
+	return aDialog;
 }
 
 void LawnApp::ButtonPress(int) {}

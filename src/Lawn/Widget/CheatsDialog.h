@@ -11,46 +11,47 @@
  * (at your option) any later version.
  */
 
-#ifndef __CONTROLLERHELPDIALOG_H__
-#define __CONTROLLERHELPDIALOG_H__
+#ifndef __CHEATSDIALOG_H__
+#define __CHEATSDIALOG_H__
 
 #include "widget/Dialog.h"
+#include "widget/CheckboxListener.h"
 
 class LawnApp;
 class NewLawnButton;
-class LawnStoneButton;
+namespace Sexy
+{
+	class Checkbox;
+};
 
-// Lists what the gamepad buttons do. Shown once when a pad is first seen, and
-// available from the controller settings after that.
-class ControllerHelpDialog : public Sexy::Dialog
+// Cheats, kept out of the controller settings so neither screen crowds the
+// other. Deliberately not saved: they last until the game is closed.
+class CheatsDialog : public Sexy::Dialog, public Sexy::CheckboxListener
 {
 protected:
 	enum
 	{
-		ControllerHelpDialog_Settings = 100,
-		ControllerHelpDialog_Cheats,
+		CheatsDialog_FreePlanting,
+		CheatsDialog_InfiniteSun,
 	};
 
 public:
 	LawnApp*				mApp;
-	LawnStoneButton*		mSettingsButton;	// only on the card shown by itself
-	LawnStoneButton*		mCheatsButton;
+	Sexy::Checkbox*			mFreePlantingCheckbox;
+	Sexy::Checkbox*			mInfiniteSunCheckbox;
 	NewLawnButton*			mBackButton;
 
 public:
-	// theOfferSettings adds a way through to the controller settings, for the
-	// card that appears on its own -- the one opened from those settings does
-	// not, so the two cannot lead back and forth into each other.
-	ControllerHelpDialog(LawnApp* theApp, bool theOfferSettings);
-	~ControllerHelpDialog() override;
+	explicit CheatsDialog(LawnApp* theApp);
+	~CheatsDialog() override;
 
 	int						GetPreferredHeight(int theWidth) override;
 	void					AddedToManager(Sexy::WidgetManager* theWidgetManager) override;
 	void					RemovedFromManager(Sexy::WidgetManager* theWidgetManager) override;
 	void					Resize(int theX, int theY, int theWidth, int theHeight) override;
 	void					Draw(Sexy::Graphics* g) override;
+	void					CheckboxChecked(int theId, bool checked) override;
 	void					ButtonPress(int theId) override;
-	void					ButtonDepress(int theId) override;
 	void					KeyDown(Sexy::KeyCode theKey) override;
 };
 

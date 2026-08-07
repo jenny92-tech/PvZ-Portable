@@ -48,6 +48,9 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSetting
 		IsLocalizedUI(theApp) ? "手柄设置" : "Settings");
 	mSettingsButton->SetVisible(theOfferSettings);
 
+	mCheatsButton = MakeButton(ControllerHelpDialog::ControllerHelpDialog_Cheats, this,
+		IsLocalizedUI(theApp) ? "作弊" : "Cheats");
+
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
 		this,
@@ -70,6 +73,7 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSetting
 ControllerHelpDialog::~ControllerHelpDialog()
 {
 	delete mSettingsButton;
+	delete mCheatsButton;
 	delete mBackButton;
 }
 
@@ -83,6 +87,7 @@ void ControllerHelpDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
 	AddWidget(mSettingsButton);
+	AddWidget(mCheatsButton);
 	AddWidget(mBackButton);
 }
 
@@ -90,13 +95,23 @@ void ControllerHelpDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetMana
 {
 	Dialog::RemovedFromManager(theWidgetManager);
 	RemoveWidget(mSettingsButton);
+	RemoveWidget(mCheatsButton);
 	RemoveWidget(mBackButton);
 }
 
 void ControllerHelpDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
 	Dialog::Resize(theX, theY, theWidth, theHeight);
-	mSettingsButton->Resize(107, 330, 209, 46);
+	// Rows end at 304; keep the buttons clear of them and of the OK button.
+	if (mSettingsButton->mVisible)
+	{
+		mSettingsButton->Resize(107, 316, 102, 46);
+		mCheatsButton->Resize(214, 316, 102, 46);
+	}
+	else
+	{
+		mCheatsButton->Resize(107, 316, 209, 46);
+	}
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -108,7 +123,7 @@ void ControllerHelpDialog::Draw(Sexy::Graphics* g)
 	Sexy::Color aTextColor(107, 109, 145);
 
 	bool aCN = IsLocalizedUI(mApp);
-	int aY = 116;
+	int aY = 112;
 	for (const auto& aRow : kRows)
 	{
 		PvzpDrawString(g, aRow.mButton, 175, aY, FONT_DWARVENTODCRAFT18, aButtonColor,
@@ -116,7 +131,7 @@ void ControllerHelpDialog::Draw(Sexy::Graphics* g)
 		PvzpDrawString(g, aCN ? aRow.mActionCN : aRow.mActionEN, 190, aY,
 					   FONT_DWARVENTODCRAFT18, aTextColor,
 					   DrawStringJustification::DS_ALIGN_LEFT);
-		aY += 27;
+		aY += 24;
 	}
 }
 
@@ -137,6 +152,14 @@ void ControllerHelpDialog::ButtonPress(int theId)
 
 void ControllerHelpDialog::ButtonDepress(int theId)
 {
+	if (theId == ControllerHelpDialog::ControllerHelpDialog_Cheats)
+	{
+		// Close this card first, so the cheats do not stack on top of it.
+		Dialog::ButtonDepress(Dialog::ID_OK);
+		mApp->mWantCheats = true;
+		return;
+	}
+
 	if (theId == ControllerHelpDialog::ControllerHelpDialog_Settings)
 	{
 		// Close this card first, so the settings do not stack on top of it.

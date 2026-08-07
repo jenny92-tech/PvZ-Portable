@@ -49,6 +49,7 @@ class StoreScreen;
 class AlmanacDialog;
 class ControllerOptionsDialog;
 class ControllerHelpDialog;
+class CheatsDialog;
 class TypingCheck;
 
 namespace Sexy
@@ -219,7 +220,9 @@ public:
 	virtual void					UpdateRegisterInfo();
 	bool							ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) override;
 	void							ControllerAutoCollect(int thePx, int thePy) override;
-	bool							mWantControllerSettings = false;	// the controls card asked for the settings
+	bool							mInfiniteSunCheat = false;	// tops sun up while playing; not saved
+	bool							mWantControllerSettings = false;
+	bool							mWantCheats = false;			// the controls card asked for the cheats	// the controls card asked for the settings
 	bool							mControllerHelpShown = false;	// the button reference has been shown once
 	bool							ControllerInGame() override;
 	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;
@@ -254,6 +257,7 @@ public:
 	AlmanacDialog*					DoAlmanacDialog(SeedType theSeedType = SeedType::SEED_NONE, ZombieType theZombieType = ZombieType::ZOMBIE_INVALID);
 	ControllerOptionsDialog*		DoControllerOptionsDialog();
 	ControllerHelpDialog*			DoControllerHelpDialog(bool theOfferSettings);
+	CheatsDialog*					DoCheatsDialog();
 	void							ShowControllerHelpOnce();
 	bool							KillAlmanacDialog();
 	int								GetSeedsAvailable();

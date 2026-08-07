@@ -5724,6 +5724,13 @@ void Board::UpdateGame()
 
 void Board::Update()
 {
+	// Infinite sun cheat: keep the bank topped up to what the counter can show.
+	if (mApp->mInfiniteSunCheat && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+		mSunMoney < 9990)
+	{
+		mSunMoney = 9990;
+	}
+
 	PvzpHesitationBracket aHesitation("Board::Update");
 
 	Widget::Update();
