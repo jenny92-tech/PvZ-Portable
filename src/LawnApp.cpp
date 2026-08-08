@@ -1971,15 +1971,20 @@ void LawnApp::ControllerAutoCollect(int thePx, int thePy)
 	{
 		if (aCoin->mDead || aCoin->mIsBeingCollected)
 			continue;
-		CoinType aType = aCoin->mType;
-		if (aType != CoinType::COIN_SUN && aType != CoinType::COIN_SMALLSUN &&
-			aType != CoinType::COIN_LARGESUN && aType != CoinType::COIN_SILVER &&
-			aType != CoinType::COIN_GOLD && aType != CoinType::COIN_DIAMOND)
+
+		// Everything the cursor passes, the level's award included -- walking up
+		// to it is the whole gesture, and having to click it exactly is what
+		// made it awkward. A seed packet to choose from is left alone: taking
+		// one is a choice, not a pickup.
+		if (aCoin->mType == CoinType::COIN_USABLE_SEED_PACKET)
 			continue;
+		if (!aCoin->IsSun() && !aCoin->mHitGround)
+			continue;	// let it land first, so nothing is snatched in mid-air
+
 		float aDx = aCoin->mPosX - thePx;
 		float aDy = aCoin->mPosY - thePy;
 		if (aDx * aDx + aDy * aDy <= aRadiusSq)
-			aCoin->Collect();
+			aCoin->MouseDown(0, 0, 1);	// as a click would, so awards run their own handling
 	}
 }
 
