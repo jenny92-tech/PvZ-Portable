@@ -7725,18 +7725,26 @@ void Board::KeyDown(KeyCode theKey)
 	else if (theKey == KeyCode::KEYCODE_GAMEPAD_PLANT)
 	{
 		// A pressed: if the cursor isn't already holding anything, pick up the
-		// highlighted seed when it can be planted at the cursor's cell. The click
-		// that A also synthesizes then plants it. If sun/a coin sits under the
-		// cursor, the native click hit-test collects that first (seed stays held).
+		// highlighted seed when it can be planted at the cursor's cell, so the
+		// click A also synthesizes plants it.
 		if (mSeedBank != nullptr && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
 			mCursorObject->mCursorType == CursorType::CURSOR_TYPE_NORMAL &&
 			mGamepadSeedIndex >= 0 && mGamepadSeedIndex < mSeedBank->mNumPackets)
 		{
 			SeedPacket* aPacket = &mSeedBank->mSeedPackets[mGamepadSeedIndex];
-			if (aPacket->mPacketType != SeedType::SEED_NONE && aPacket->CanPickUp())
+			int aMouseX = mApp->mWidgetManager->mLastMouseX;
+			int aMouseY = mApp->mWidgetManager->mLastMouseY;
+
+			// Not when something collectable is under the cursor: the hit test
+			// skips coins entirely once the cursor holds a seed, so picking one
+			// up here would put the sun -- or the award a finished level drops --
+			// out of reach.
+			HitResult aHitResult;
+			bool aOverCoin = MouseHitTest(aMouseX, aMouseY, &aHitResult) &&
+							 aHitResult.mObjectType == GameObjectType::OBJECT_TYPE_COIN;
+
+			if (!aOverCoin && aPacket->mPacketType != SeedType::SEED_NONE && aPacket->CanPickUp())
 			{
-				int aMouseX = mApp->mWidgetManager->mLastMouseX;
-				int aMouseY = mApp->mWidgetManager->mLastMouseY;
 				int aGridX = PixelToGridX(aMouseX, aMouseY);
 				int aGridY = PixelToGridY(aMouseX, aMouseY);
 				if (CanPlantAt(aGridX, aGridY, aPacket->mPacketType) == PlantingReason::PLANTING_OK)
