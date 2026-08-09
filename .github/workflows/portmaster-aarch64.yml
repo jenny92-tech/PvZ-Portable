@@ -78,7 +78,11 @@ jobs:
       # included: libopenmpt is a C++ shared library and the devices' libstdc++ is
       # older than what gcc-13 emits.
       run: |
-        mkdir -p dist/pvz_portable/libs.aarch64
+        mkdir -p dist/pvz_portable/libs.aarch64 dist/pvz_portable/gconv
+        # TrimUI firmware ships no gconv modules, but LawnStrings.txt in main.pak
+        # is UTF-16LE; bundle the converter so iconv() can read it there.
+        cp /usr/lib/aarch64-linux-gnu/gconv/UTF-16.so dist/pvz_portable/gconv/
+        cp /usr/lib/aarch64-linux-gnu/gconv/gconv-modules dist/pvz_portable/gconv/
         cp portmaster/PvzPortable.sh dist/
         chmod 755 dist/PvzPortable.sh
         cp portmaster/port.json portmaster/gameinfo.xml portmaster/README.md dist/
