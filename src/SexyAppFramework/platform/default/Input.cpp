@@ -26,6 +26,7 @@
 #include <cstdlib>
 
 #include <algorithm>
+#include <cmath>
 
 #include "SexyAppBase.h"
 #include "graphics/GLInterface.h"
@@ -353,7 +354,10 @@ float				gStickY = 0.0f;
 Uint32				gLastAdvanceTick = 0;
 bool				gAHeld = false;		// A held -> auto-repeat clicks (sweep to collect sun)
 Uint32				gARepeatTick = 0;	// next time an auto-repeat click fires
-bool				gCursorBoost = false;	// R2/L3 held -> move the cursor faster
+bool				gCursorBoostEnabled = true;		// L3 can be switched off, for thumbs that rest on the stick
+bool				gCursorBoost = false;	// L3 held -> the cursor sprints
+bool				gGameSpeedUp = false;	// R2 held -> 2x game speed
+bool				gGameSlowDown = false;	// L2 held -> the game eases off
 bool				gOnBoard = false;	// cursor is over a lawn cell -> draw selector box, not arrow
 int					gBoxX = 0, gBoxY = 0, gBoxW = 0, gBoxH = 0;	// selector box rect (game space)
 int					gLastDpadX = 0, gLastDpadY = 0;	// previous D-pad direction (edge detection)
@@ -368,16 +372,17 @@ const float			kJellyPull = 9.0f;	// free-mode magnetism toward a cell centre (je
 // them to the registry (via the SexyAppBase getters/setters below) and exposes
 // them in the controller options dialog. Env vars still override at startup for
 // on-device tuning without touching a save.
-const float			kCursorSpeed = 400.0f;			// px/s at full deflection
+const float			kCursorSpeed = 700.0f;			// px/s at full deflection, on the game's fixed 800x600 canvas.
+											// The port this borrows from reads as 400, but it steps a hardcoded
+											// 1/60 dt on a 100Hz update, so it really moves about 667.
 float				gSensitivity = 1.0f;			// [0.5, 2.0]
 float				gSunRadius = 220.0f;			// auto-collect radius px, [60, 640]
 bool				gFreeCursor = false;			// false = confine the cursor to the lawn during normal play; true = let it roam the screen
-bool				gCursorBoostEnabled = true;		// whether R2/L3 speed the cursor up
 bool				gSwapAB = false;				// swap A and B, for pads whose face buttons are labelled the other way round
 bool				gSwapXY = false;				// swap X and Y, for pads whose face buttons are labelled the other way round
 const int			kStickDeadzone = 6553;	// ~0.2 * 32767
 const int			kTriggerThreshold = 16384;	// half pull counts as pressed
-const float			kBoostFactor = 2.5f;	// cursor speed multiplier while R2/L3 is held
+const float			kBoostFactor = 2.5f;	// cursor speed multiplier while the sprint is on
 
 const Uint32		kARepeatDelay = 300;	// ms before A begins repeating
 const Uint32		kARepeatInterval = 60;	// ms between auto-repeat clicks
@@ -444,6 +449,12 @@ bool SexyAppBase::UpdateControllerCursor()
 	if (gController == nullptr)
 		return false;
 
+	if (!ControllerInGame())
+	{
+		gGameSpeedUp = false;
+		gGameSlowDown = false;
+	}
+
 
 
 	Uint32 aNow = SDL_GetTicks();
@@ -504,8 +515,14 @@ bool SexyAppBase::UpdateControllerCursor()
 				// Jelly magnetism: while sliding, pull toward the cell centre the
 				// cursor is now over -- strong near the centre, ~0 at the edge, so
 				// it feels free but "sucks in" to cells (iOS/PSV detent feel).
+				// It fades out as the stick goes over, so lining a shot up still
+				// gets the detent while crossing the lawn is not dragged at.
 				int jcx, jcy, jcw, jch;
-				if (ControllerBoardCell((int)gCursorX, (int)gCursorY, jcx, jcy, jcw, jch))
+				float aPush = sqrtf(aMvX * aMvX + aMvY * aMvY);
+				if (aPush > 1.0f) aPush = 1.0f;
+				float aPullScale = 1.0f - aPush;
+				if (aPullScale > 0.0f &&
+					ControllerBoardCell((int)gCursorX, (int)gCursorY, jcx, jcy, jcw, jch))
 				{
 					float dx = jcx - gCursorX, dy = jcy - gCursorY;
 					float nx = (jcw > 0) ? dx / (jcw * 0.5f) : 0.0f;
@@ -513,7 +530,7 @@ bool SexyAppBase::UpdateControllerCursor()
 					float s = 1.0f - (nx * nx + ny * ny);	// 1 at centre, 0 at edge
 					if (s > 0.0f)
 					{
-						float f = kJellyPull * s * aDt;
+						float f = kJellyPull * s * aPullScale * aDt;
 						if (f > 1.0f) f = 1.0f;
 						gCursorX += dx * f;
 						gCursorY += dy * f;
@@ -622,8 +639,10 @@ float SexyAppBase::GetControllerSunRadius()            { return gSunRadius; }
 void  SexyAppBase::SetControllerSunRadius(float v)     { gSunRadius = Clampf(v, 60.0f, 640.0f); }
 bool  SexyAppBase::GetControllerFreeCursor()           { return gFreeCursor; }
 void  SexyAppBase::SetControllerFreeCursor(bool v)     { gFreeCursor = v; }
+bool  SexyAppBase::IsControllerGameSpeedUp()           { return gGameSpeedUp; }
+bool  SexyAppBase::IsControllerGameSlowDown()          { return gGameSlowDown; }
 bool  SexyAppBase::GetControllerCursorBoostEnabled()   { return gCursorBoostEnabled; }
-void  SexyAppBase::SetControllerCursorBoostEnabled(bool v) { gCursorBoostEnabled = v; }
+void  SexyAppBase::SetControllerCursorBoostEnabled(bool v) { gCursorBoostEnabled = v; if (!v) gCursorBoost = false; }
 bool  SexyAppBase::GetControllerSwapAB()               { return gSwapAB; }
 void  SexyAppBase::SetControllerSwapAB(bool v)         { gSwapAB = v; }
 bool  SexyAppBase::GetControllerSwapXY()               { return gSwapXY; }
@@ -668,14 +687,13 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 				gStickX = NormalizeAxis(theEvent.caxis.value);
 			else if (theEvent.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)
 				gStickY = NormalizeAxis(theEvent.caxis.value);
+			// The triggers set the pace while held: L2 slower, R2 faster. Held
+			// rather than toggled, so the game's speed is never left somewhere
+			// unexpected, and the pace returns the moment a finger lifts.
+			if (theEvent.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT)
+				gGameSlowDown = theEvent.caxis.value > kTriggerThreshold;
 			if (theEvent.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
-			{
-				// R2 held: same 2x fast-forward as L3, on a button that is
-				// comfortable to hold. Triggers report as an axis, so treat
-				// anything past halfway as pressed.
-				bool aPressed = theEvent.caxis.value > kTriggerThreshold;
-				gCursorBoost = aPressed && gCursorBoostEnabled;
-			}
+				gGameSpeedUp = theEvent.caxis.value > kTriggerThreshold;
 			return true;
 
 		case SDL_CONTROLLERBUTTONDOWN:
@@ -792,10 +810,8 @@ bool SexyAppBase::HandleControllerEvent(const SDL_Event& theEvent)
 				return true;
 			}
 
-			// L3 (left-stick click) runs the game at 2x while held, same as R2.
-			// The speed itself comes from an extra logic update per frame in
-			// LawnApp::UpdateFrames, not from a faster render loop, which a
-			// handheld already running near its frame budget cannot deliver.
+			// L3 sprints the cursor while held, the same bargain as the triggers:
+			// a finger is on it, so it can never be left switched on.
 			if (theEvent.cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSTICK)
 			{
 				gCursorBoost = aDown && gCursorBoostEnabled;
