@@ -350,6 +350,11 @@ void NewOptionsDialog::ButtonDepress(int theId)
 		PortOptionsDialog* aDialog = mApp->DoPortOptionsDialog();
 		aDialog->WaitForResult(true);
 		mApp->KillDialog(Dialogs::DIALOG_PORT_OPTIONS);
+		if (mApp->mWantWinLevel)
+		{
+			Dialog::ButtonDepress(Dialog::ID_OK);	// see PortOptionsDialog
+			return;
+		}
 		break;
 	}
 

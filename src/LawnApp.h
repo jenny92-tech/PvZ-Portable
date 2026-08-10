@@ -225,7 +225,8 @@ public:
 	bool							mSlowMoCheat = false;		// a quarter slower; the game's own gSlowMo runs at a quarter speed
 	int								mSlowMoCheatCounter = 0;
 	bool							mWantControllerSettings = false;
-	bool							mWantCheats = false;			// the controls card asked for the cheats	// the controls card asked for the settings
+	bool							mWantCheats = false;
+	bool							mWantWinLevel = false;		// the cheat asked to end the level; run once the dialogs are gone			// the controls card asked for the cheats	// the controls card asked for the settings
 	bool							mControllerHelpShown = false;	// shown already this run; not saved, so it returns each launch
 	bool							ControllerInGame() override;
 	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;

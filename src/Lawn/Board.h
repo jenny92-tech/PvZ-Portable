@@ -286,6 +286,7 @@ public:
 	void							KeyUp(KeyCode) override {}
 	void							KeyDown(KeyCode theKey) override;
 	void							GamepadClickAt(int theX, int theY);
+	void							CheatWinLevel();
 	void							Update() override;
 	void							UpdateLayers();
 	void							Draw(Graphics* g) override;

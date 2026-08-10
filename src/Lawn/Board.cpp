@@ -1842,6 +1842,51 @@ void Board::CompleteEndLevelSequenceForSaving()
 	mApp->UpdatePlayerProfileForFinishingLevel();
 }
 
+// Ends the level as won, the way the original's cheat key does: clear the
+// board and run its own fade-out, rather than declaring it complete and
+// leaving the ending to guess at what happened.
+void Board::CheatWinLevel()
+{
+	mApp->mBoardResult = BoardResult::BOARDRESULT_CHEAT;
+	if (IsLastStandStageWithRepick())
+	{
+		if (mNextSurvivalStageCounter == 0)
+		{
+			mCurrentWave = mNumWaves;
+			RemoveAllZombies();
+			FadeOutLevel();
+		}
+	}
+	else if ((mApp->IsScaryPotterLevel() && !IsFinalScaryPotterStage()) || mApp->IsEndlessIZombie(mApp->mGameMode))
+	{
+		if (mNextSurvivalStageCounter == 0)
+		{
+			RemoveAllZombies();
+			FadeOutLevel();
+		}
+	}
+	else if (mApp->IsSurvivalMode())
+	{
+		if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO)
+		{
+			return;
+		}
+
+		mCurrentWave = mNumWaves;
+		//if (!IsSurvivalStageWithRepick())
+		//{
+			RemoveAllZombies();
+		//}
+		FadeOutLevel();
+	}
+	else
+	{
+		RemoveAllZombies();
+		FadeOutLevel();
+		mBoardFadeOutCounter = 200;
+	}
+}
+
 void Board::FadeOutLevel()
 {
 	if (mApp->mGameScene != GameScenes::SCENE_PLAYING)
@@ -5724,6 +5769,17 @@ void Board::UpdateGame()
 
 void Board::Update()
 {
+	// The cheat that ends a level cannot do it from its own screen: the board
+	// would be torn down under the dialogs still waiting on it. Run it here,
+	// once they have closed and the board is the only thing left.
+	if (mApp->mWantWinLevel && mApp->mDialogMap.empty() &&
+		mApp->mGameScene == GameScenes::SCENE_PLAYING)
+	{
+		mApp->mWantWinLevel = false;
+		CheatWinLevel();
+		return;
+	}
+
 	// Infinite sun cheat: keep the bank topped up to what the counter can show.
 	if (mApp->mInfiniteSunCheat && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
 		mSunMoney < 9990)
@@ -8069,44 +8125,7 @@ void Board::KeyChar(char theChar)
 	}
 	else if (theChar == '!')
 	{
-		mApp->mBoardResult = BoardResult::BOARDRESULT_CHEAT;
-		if (IsLastStandStageWithRepick())
-		{
-			if (mNextSurvivalStageCounter == 0)
-			{
-				mCurrentWave = mNumWaves;
-				RemoveAllZombies();
-				FadeOutLevel();
-			}
-		}
-		else if ((mApp->IsScaryPotterLevel() && !IsFinalScaryPotterStage()) || mApp->IsEndlessIZombie(mApp->mGameMode))
-		{
-			if (mNextSurvivalStageCounter == 0)
-			{
-				RemoveAllZombies();
-				FadeOutLevel();
-			}
-		}
-		else if (mApp->IsSurvivalMode())
-		{
-			if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO)
-			{
-				return;
-			}
-
-			mCurrentWave = mNumWaves;
-			//if (!IsSurvivalStageWithRepick())
-			//{
-				RemoveAllZombies();
-			//}
-			FadeOutLevel();
-		}
-		else
-		{
-			RemoveAllZombies();
-			FadeOutLevel();
-			mBoardFadeOutCounter = 200;
-		}
+		CheatWinLevel();
 	}
 	else if (theChar == '+')
 	{

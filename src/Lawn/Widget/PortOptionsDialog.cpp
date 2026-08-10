@@ -134,6 +134,10 @@ void PortOptionsDialog::ButtonDepress(int theId)
 		CheatsDialog* aDialog = mApp->DoCheatsDialog();
 		aDialog->WaitForResult(true);
 		mApp->KillDialog(Dialogs::DIALOG_CHEATS);
+		// A cheat that ends the level only asks for it; get out of the way so
+		// the board can, instead of leaving these panels to be dismissed first.
+		if (mApp->mWantWinLevel)
+			Dialog::ButtonDepress(Dialog::ID_OK);
 		return;
 	}
 	case PortOptionsDialog::PortOptionsDialog_Controls:
