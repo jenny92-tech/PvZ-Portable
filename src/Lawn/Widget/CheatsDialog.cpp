@@ -164,12 +164,11 @@ void CheatsDialog::ButtonDepress(int theId)
 			mApp->mBoard->ShowCoinBank();
 		return;
 	case CheatsDialog::CheatsDialog_WinLevel:
+		// Only ask for it here; Board::Update ends the level once every dialog
+		// has closed, so nothing is left holding a board that is going away.
 		if (mApp->mBoard != nullptr && mApp->mGameScene == GameScenes::SCENE_PLAYING)
-		{
-			mApp->mBoardResult = BoardResult::BOARDRESULT_CHEAT;
-			Dialog::ButtonDepress(Dialog::ID_OK);	// close, the level is ending
-			mApp->mBoard->mLevelComplete = true;
-		}
+			mApp->mWantWinLevel = true;
+		Dialog::ButtonDepress(Dialog::ID_OK);
 		return;
 	}
 
