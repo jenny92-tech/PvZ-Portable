@@ -544,6 +544,10 @@ public:
 	bool					UpdateControllerCursor(); // advance the gamepad-driven virtual cursor one frame
 	bool					GetControllerCursor(int& theX, int& theY); // draw pos of the gamepad cursor, if active
 	bool					IsControllerActive(); // true if a gamepad is connected and driving input
+	bool					IsControllerGameSpeedUp();  // true while R2 has the game running at 2x
+	bool					IsControllerGameSlowDown(); // true while L2 has it easing off
+	bool					GetControllerCursorBoostEnabled();
+	void					SetControllerCursorBoostEnabled(bool theValue);
 	bool					GetControllerBox(int& theX, int& theY, int& theW, int& theH); // selector-box rect when cursor is over a lawn cell
 	// Draw the four crisp corner brackets of the gamepad selector around a box.
 	// Uses a baked sprite (no PAK/resource dependency). theCornerScale sizes the
@@ -556,8 +560,6 @@ public:
 	void					SetControllerSunRadius(float theValue);
 	bool					GetControllerFreeCursor();
 	void					SetControllerFreeCursor(bool theValue);
-	bool					GetControllerCursorBoostEnabled();
-	void					SetControllerCursorBoostEnabled(bool theValue);
 	bool					GetControllerSwapAB();
 	void					SetControllerSwapAB(bool theValue);
 	bool					GetControllerSwapXY();

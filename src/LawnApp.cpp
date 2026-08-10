@@ -1693,14 +1693,21 @@ void LawnApp::UpdateFrames()
 	{
 		aUpdateCount = 20;
 	}
-	else if (mSlowMoCheat)
+	else if (IsControllerGameSpeedUp() && ControllerInGame())
+	{
+		// R2: three logic updates per rendered frame, so the game runs at three
+		// times the speed without asking the device for a faster frame rate.
+		// Twice over reads as barely quicker when what you want is to skip a lull.
+		aUpdateCount = 3;
+	}
+	else if (IsControllerGameSlowDown() && ControllerInGame())
 	{
 		// A quarter slower: run the logic on three frames in four. The game's
 		// own slow-mo runs it on one in four, far slower than anyone wants to
 		// play at, and half speed still overshoots.
-		if (++mSlowMoCheatCounter >= 4)
+		if (++mSlowDownCounter >= 4)
 		{
-			mSlowMoCheatCounter = 0;
+			mSlowDownCounter = 0;
 			aUpdateCount = 0;
 		}
 	}

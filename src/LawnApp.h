@@ -222,11 +222,10 @@ public:
 	bool							ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) override;
 	void							ControllerAutoCollect(int thePx, int thePy) override;
 	bool							mInfiniteSunCheat = false;	// tops sun up while playing; not saved
-	bool							mSlowMoCheat = false;		// a quarter slower; the game's own gSlowMo runs at a quarter speed
-	int								mSlowMoCheatCounter = 0;
+	int								mSlowDownCounter = 0;		// L2 drops one update in four; the game's own gSlowMo runs at a quarter speed
 	bool							mWantControllerSettings = false;
 	bool							mWantCheats = false;
-	bool							mWantWinLevel = false;		// the cheat asked to end the level; run once the dialogs are gone			// the controls card asked for the cheats	// the controls card asked for the settings
+	bool							mWantWinLevel = false;		// the cheat asked to end the level; run once the dialogs are gone
 	bool							mControllerHelpShown = false;	// shown already this run; not saved, so it returns each launch
 	bool							ControllerInGame() override;
 	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;
