@@ -35,7 +35,7 @@ protected:
 		ControllerOptionsDialog_Sensitivity,
 		ControllerOptionsDialog_SunRadius,
 		ControllerOptionsDialog_FreeCursor,
-		ControllerOptionsDialog_FastForward,
+		ControllerOptionsDialog_CursorBoost,
 		ControllerOptionsDialog_SwapAB,
 		ControllerOptionsDialog_SwapXY,
 	};
@@ -45,7 +45,7 @@ public:
 	Sexy::Slider*			mSensitivitySlider;
 	Sexy::Slider*			mSunRadiusSlider;
 	Sexy::Checkbox*			mFreeCursorCheckbox;
-	Sexy::Checkbox*			mFastForwardCheckbox;
+	Sexy::Checkbox*			mCursorBoostCheckbox;
 	Sexy::Checkbox*			mSwapABCheckbox;
 	Sexy::Checkbox*			mSwapXYCheckbox;
 	NewLawnButton*			mBackButton;
