@@ -35,8 +35,6 @@ CheatsDialog::CheatsDialog(LawnApp* theApp) :
 		CheatsDialog::CheatsDialog_FreePlanting, this, theApp->mEasyPlantingCheat);
 	mInfiniteSunCheckbox = MakeNewCheckbox(
 		CheatsDialog::CheatsDialog_InfiniteSun, this, theApp->mInfiniteSunCheat);
-	mSlowMoCheckbox = MakeNewCheckbox(
-		CheatsDialog::CheatsDialog_SlowMo, this, theApp->mSlowMoCheat);
 
 	bool aCN = IsLocalizedUI(theApp);
 	mCoinsButton = MakeButton(CheatsDialog::CheatsDialog_Coins, this,
@@ -45,6 +43,10 @@ CheatsDialog::CheatsDialog(LawnApp* theApp) :
 	mWinLevelButton = MakeButton(CheatsDialog::CheatsDialog_WinLevel, this,
 		aCN ? "立即过关" : "Win level");
 	mWinLevelButton->mLabelColor = Color(255, 120, 120);
+	// Nothing to win outside a level, and a button that silently does nothing
+	// reads as broken, so it only appears while one is being played.
+	mWinLevelButton->SetVisible(theApp->mBoard != nullptr &&
+								theApp->mGameScene == GameScenes::SCENE_PLAYING);
 
 	mBackButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -69,7 +71,6 @@ CheatsDialog::~CheatsDialog()
 {
 	delete mFreePlantingCheckbox;
 	delete mInfiniteSunCheckbox;
-	delete mSlowMoCheckbox;
 	delete mCoinsButton;
 	delete mWinLevelButton;
 	delete mBackButton;
@@ -86,7 +87,6 @@ void CheatsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 	Dialog::AddedToManager(theWidgetManager);
 	AddWidget(mFreePlantingCheckbox);
 	AddWidget(mInfiniteSunCheckbox);
-	AddWidget(mSlowMoCheckbox);
 	AddWidget(mCoinsButton);
 	AddWidget(mWinLevelButton);
 	AddWidget(mBackButton);
@@ -97,7 +97,6 @@ void CheatsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 	Dialog::RemovedFromManager(theWidgetManager);
 	RemoveWidget(mFreePlantingCheckbox);
 	RemoveWidget(mInfiniteSunCheckbox);
-	RemoveWidget(mSlowMoCheckbox);
 	RemoveWidget(mCoinsButton);
 	RemoveWidget(mWinLevelButton);
 	RemoveWidget(mBackButton);
@@ -108,9 +107,8 @@ void CheatsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	Dialog::Resize(theX, theY, theWidth, theHeight);
 	mFreePlantingCheckbox->Resize(284, 132, 46, 45);
 	mInfiniteSunCheckbox->Resize(284, 172, 46, 45);
-	mSlowMoCheckbox->Resize(284, 212, 46, 45);
-	mCoinsButton->Resize(107, 262, 209, 46);
-	mWinLevelButton->Resize(107, 318, 209, 46);
+	mCoinsButton->Resize(107, 232, 209, 46);
+	mWinLevelButton->Resize(107, 288, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }
 
@@ -124,8 +122,6 @@ void CheatsDialog::Draw(Sexy::Graphics* g)
 				   aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, aCN ? "无限阳光" : "Infinite sun", 274, 196, FONT_DWARVENTODCRAFT18,
 				   aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-	PvzpDrawString(g, aCN ? "慢动作" : "Slow motion", 274, 236, FONT_DWARVENTODCRAFT18,
-				   aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 }
 
 void CheatsDialog::CheckboxChecked(int theId, bool checked)
@@ -137,10 +133,6 @@ void CheatsDialog::CheckboxChecked(int theId, bool checked)
 		break;
 	case CheatsDialog::CheatsDialog_InfiniteSun:
 		mApp->mInfiniteSunCheat = checked;
-		break;
-	case CheatsDialog::CheatsDialog_SlowMo:
-		mApp->mSlowMoCheat = checked;
-		mApp->mSlowMoCheatCounter = 0;
 		break;
 	}
 }

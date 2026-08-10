@@ -34,7 +34,6 @@ protected:
 	{
 		CheatsDialog_FreePlanting,
 		CheatsDialog_InfiniteSun,
-		CheatsDialog_SlowMo,
 		CheatsDialog_Coins = 100,
 		CheatsDialog_WinLevel,
 	};
@@ -43,7 +42,6 @@ public:
 	LawnApp*				mApp;
 	Sexy::Checkbox*			mFreePlantingCheckbox;
 	Sexy::Checkbox*			mInfiniteSunCheckbox;
-	Sexy::Checkbox*			mSlowMoCheckbox;
 	LawnStoneButton*		mCoinsButton;
 	LawnStoneButton*		mWinLevelButton;
 	NewLawnButton*			mBackButton;
