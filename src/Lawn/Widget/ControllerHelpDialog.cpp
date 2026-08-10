@@ -22,20 +22,20 @@
 
 using namespace Sexy;
 
+// Only what a player would not already guess: the stick moving a cursor, A
+// planting and START pausing explain themselves, so the card skips them.
 // The pak fonts only carry glyphs the stock game uses, so the Chinese wording
 // is built from characters that appear in the game's own strings -- checked
 // against a localized LawnStrings.txt -- and the buttons stay as letters.
 struct HelpRow { const char* mButton; const char* mActionCN; const char* mActionEN; };
 static const HelpRow kRows[] = {
-	{ "D-PAD",  "移动光标",    "Move cursor"     },
-	{ "STICK",  "移动光标",    "Move cursor"     },
-	{ "A",      "种植 / 收集", "Plant / collect" },
 	{ "B",      "铲子",        "Shovel"          },
 	{ "X",      "商店 / 锤子", "Store / hammer"  },
 	{ "Y",      "花园",        "Zen Garden"      },
 	{ "L1  R1", "选择卡片",    "Seed packets"    },
-	{ "R2  L3", "加速移动",    "Move faster"     },
-	{ "START",  "暂停",        "Pause"           },
+	{ "L3",     "光标加速",    "Cursor sprint"   },
+	{ "R2",     "游戏加速",    "Game 2x"         },
+	{ "L2",     "游戏减速",    "Game slow"       },
 };
 
 ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSettings) :
@@ -97,7 +97,9 @@ void ControllerHelpDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetMana
 void ControllerHelpDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
 	Dialog::Resize(theX, theY, theWidth, theHeight);
-	// Rows end at 304, so the button sits clear of them and of the OK button.
+	// The rows end at 310, so the button sits clear of them and of the OK button.
+	// Adding a row means re-checking that -- the button hides whatever it covers,
+	// and only the startup card shows the button, so a clash is easy to miss.
 	mSettingsButton->Resize(107, 316, 209, 46);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
 }

@@ -16,8 +16,12 @@ PortMaster handhelds. The game assets are not included: copy `main.pak` and the
 | X            | Open the store, swing the whacking hammer, pull the slot lever   |
 | Y            | Wake Stinky in the Zen Garden                                    |
 | L1 / R1      | Select the previous / next seed packet                           |
-| R2 / L3      | Hold to move the cursor faster                                   |
+| L3           | Hold to move the cursor faster                                   |
+| R2           | Hold to run the game at 3x, for waiting out a lull               |
+| L2           | Hold to run the game a quarter slower                            |
 | Start/Select | Pause; in menus and dialogs, go back                             |
+
+R2 and L2 only act during a level, so the menus always run at their own pace.
 
 Holding A over the lawn keeps clicking, so sweeping the cursor collects the sun
 it passes.
@@ -26,12 +30,15 @@ it passes.
 
 The options menu has a **Controller** entry with cursor speed, the auto-collect
 radius, a free-cursor toggle (off: the cursor is held on the lawn during normal
-play; on: it may reach the whole screen), a toggle for the R2/L3 speed-up, and
-and A/B and X/Y swaps for pads whose face buttons are labelled the other way
-round. Settings are saved.
+play; on: it may reach the whole screen), a toggle for the L3 cursor sprint, and
+A/B and X/Y swaps for pads whose face buttons are labelled the other way round.
+Settings are saved.
 
-The controls above are also shown in-game the first time you start with a pad
-connected, and from the **Controls** button in the controller settings.
+There is also a **Cheats** entry: free planting, infinite sun, a button that
+adds coins, and one that finishes the current level outright.
+
+A short controls card is shown every time the game starts, and both screens are
+reachable from the **Port Options** entry in the options menu.
 
 ## Credits
 

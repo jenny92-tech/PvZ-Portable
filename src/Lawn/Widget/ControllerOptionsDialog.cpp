@@ -43,8 +43,8 @@ ControllerOptionsDialog::ControllerOptionsDialog(LawnApp* theApp) :
 
 	mFreeCursorCheckbox = MakeNewCheckbox(
 		ControllerOptionsDialog::ControllerOptionsDialog_FreeCursor, this, theApp->GetControllerFreeCursor());
-	mFastForwardCheckbox = MakeNewCheckbox(
-		ControllerOptionsDialog::ControllerOptionsDialog_FastForward, this, theApp->GetControllerCursorBoostEnabled());
+	mCursorBoostCheckbox = MakeNewCheckbox(
+		ControllerOptionsDialog::ControllerOptionsDialog_CursorBoost, this, theApp->GetControllerCursorBoostEnabled());
 	mSwapABCheckbox = MakeNewCheckbox(
 		ControllerOptionsDialog::ControllerOptionsDialog_SwapAB, this, theApp->GetControllerSwapAB());
 	mSwapXYCheckbox = MakeNewCheckbox(
@@ -74,7 +74,7 @@ ControllerOptionsDialog::~ControllerOptionsDialog()
 	delete mSensitivitySlider;
 	delete mSunRadiusSlider;
 	delete mFreeCursorCheckbox;
-	delete mFastForwardCheckbox;
+	delete mCursorBoostCheckbox;
 	delete mSwapABCheckbox;
 	delete mSwapXYCheckbox;
 	delete mBackButton;
@@ -92,7 +92,7 @@ void ControllerOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManag
 	AddWidget(mSensitivitySlider);
 	AddWidget(mSunRadiusSlider);
 	AddWidget(mFreeCursorCheckbox);
-	AddWidget(mFastForwardCheckbox);
+	AddWidget(mCursorBoostCheckbox);
 	AddWidget(mSwapABCheckbox);
 	AddWidget(mSwapXYCheckbox);
 	AddWidget(mBackButton);
@@ -104,7 +104,7 @@ void ControllerOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetM
 	RemoveWidget(mSensitivitySlider);
 	RemoveWidget(mSunRadiusSlider);
 	RemoveWidget(mFreeCursorCheckbox);
-	RemoveWidget(mFastForwardCheckbox);
+	RemoveWidget(mCursorBoostCheckbox);
 	RemoveWidget(mSwapABCheckbox);
 	RemoveWidget(mSwapXYCheckbox);
 	RemoveWidget(mBackButton);
@@ -116,7 +116,7 @@ void ControllerOptionsDialog::Resize(int theX, int theY, int theWidth, int theHe
 	mSensitivitySlider->Resize(199, 116, 135, 40);
 	mSunRadiusSlider->Resize(199, 143, 135, 40);
 	mFreeCursorCheckbox->Resize(283, 175, 46, 45);
-	mFastForwardCheckbox->Resize(284, 206, 46, 45);
+	mCursorBoostCheckbox->Resize(284, 206, 46, 45);
 	mSwapABCheckbox->Resize(284, 235, 46, 45);
 	mSwapXYCheckbox->Resize(284, 263, 46, 45);
 	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
@@ -143,9 +143,9 @@ void ControllerOptionsDialog::Draw(Sexy::Graphics* g)
 	PvzpDrawString(g, aCN ? "光标速度" : "Cursor Speed", 186, 140, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, aCN ? "收集范围" : "Sun Range", 186, 167, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, aCN ? "自由移动" : "Free Cursor", 274, 197, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-	PvzpDrawString(g, aCN ? "R2/L3 二倍速" : "R2/L3 = 2x Cursor", 274, 229, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	// ASCII only: the pak fonts carry no glyphs the stock game never used, and
 	// an arrow between the two letters needs no translating either way.
+	PvzpDrawString(g, aCN ? "L3 光标加速" : "L3 = Cursor sprint", 274, 229, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, "A <-> B", 274, 259, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, "X <-> Y", 274, 287, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 }
@@ -170,7 +170,7 @@ void ControllerOptionsDialog::CheckboxChecked(int theId, bool checked)
 	case ControllerOptionsDialog::ControllerOptionsDialog_FreeCursor:
 		mApp->SetControllerFreeCursor(checked);
 		break;
-	case ControllerOptionsDialog::ControllerOptionsDialog_FastForward:
+	case ControllerOptionsDialog::ControllerOptionsDialog_CursorBoost:
 		mApp->SetControllerCursorBoostEnabled(checked);
 		break;
 	case ControllerOptionsDialog::ControllerOptionsDialog_SwapAB:
