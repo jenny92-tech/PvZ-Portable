@@ -15,6 +15,7 @@
 #define __PORTOPTIONSDIALOG_H__
 
 #include "widget/Dialog.h"
+#include <memory>
 
 class LawnApp;
 class NewLawnButton;
@@ -34,10 +35,10 @@ protected:
 
 public:
 	LawnApp*				mApp;
-	LawnStoneButton*		mControllerButton;
-	LawnStoneButton*		mCheatsButton;
-	LawnStoneButton*		mControlsButton;
-	NewLawnButton*			mBackButton;
+	std::unique_ptr<LawnStoneButton>	mControllerButton;
+	std::unique_ptr<LawnStoneButton>	mCheatsButton;
+	std::unique_ptr<LawnStoneButton>	mControlsButton;
+	std::unique_ptr<NewLawnButton>	mBackButton;
 
 public:
 	explicit PortOptionsDialog(LawnApp* theApp);

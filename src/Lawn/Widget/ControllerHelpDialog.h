@@ -15,6 +15,7 @@
 #define __CONTROLLERHELPDIALOG_H__
 
 #include "widget/Dialog.h"
+#include <memory>
 
 class LawnApp;
 class NewLawnButton;
@@ -32,8 +33,8 @@ protected:
 
 public:
 	LawnApp*				mApp;
-	LawnStoneButton*		mSettingsButton;	// only on the card shown by itself
-	NewLawnButton*			mBackButton;
+	std::unique_ptr<LawnStoneButton>	mSettingsButton;	// only on the card shown by itself
+	std::unique_ptr<NewLawnButton>	mBackButton;
 
 public:
 	// theOfferSettings adds a way through to the controller settings, for the

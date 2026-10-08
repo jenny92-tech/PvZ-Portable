@@ -55,9 +55,6 @@ public:
 	uint32_t*				GetBits();
 };
 
-bool WriteJPEGImage(const std::string& theFileName, Image* theImage);
-bool WritePNGImage(const std::string& theFileName, Image* theImage);
-bool WriteTGAImage(const std::string& theFileName, Image* theImage);
 extern int gAlphaComposeColor;
 extern bool gAutoLoadAlpha;
 extern bool gIgnoreJPEG2000Alpha;  // I've noticed alpha in jpeg2000's that shouldn't have alpha so this defaults to true

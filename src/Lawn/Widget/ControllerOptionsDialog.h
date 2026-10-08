@@ -17,6 +17,7 @@
 #include "widget/Dialog.h"
 #include "widget/SliderListener.h"
 #include "widget/CheckboxListener.h"
+#include <memory>
 
 class LawnApp;
 class NewLawnButton;
@@ -42,13 +43,13 @@ protected:
 
 public:
 	LawnApp*				mApp;
-	Sexy::Slider*			mSensitivitySlider;
-	Sexy::Slider*			mSunRadiusSlider;
-	Sexy::Checkbox*			mFreeCursorCheckbox;
-	Sexy::Checkbox*			mCursorBoostCheckbox;
-	Sexy::Checkbox*			mSwapABCheckbox;
-	Sexy::Checkbox*			mSwapXYCheckbox;
-	NewLawnButton*			mBackButton;
+	std::unique_ptr<Sexy::Slider>	mSensitivitySlider;
+	std::unique_ptr<Sexy::Slider>	mSunRadiusSlider;
+	std::unique_ptr<Sexy::Checkbox>	mFreeCursorCheckbox;
+	std::unique_ptr<Sexy::Checkbox>	mCursorBoostCheckbox;
+	std::unique_ptr<Sexy::Checkbox>	mSwapABCheckbox;
+	std::unique_ptr<Sexy::Checkbox>	mSwapXYCheckbox;
+	std::unique_ptr<NewLawnButton>	mBackButton;
 
 public:
 	explicit ControllerOptionsDialog(LawnApp* theApp);
