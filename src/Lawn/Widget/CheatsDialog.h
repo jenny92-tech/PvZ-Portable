@@ -16,6 +16,7 @@
 
 #include "widget/Dialog.h"
 #include "widget/CheckboxListener.h"
+#include <memory>
 
 class LawnApp;
 class NewLawnButton;
@@ -40,11 +41,11 @@ protected:
 
 public:
 	LawnApp*				mApp;
-	Sexy::Checkbox*			mFreePlantingCheckbox;
-	Sexy::Checkbox*			mInfiniteSunCheckbox;
-	LawnStoneButton*		mCoinsButton;
-	LawnStoneButton*		mWinLevelButton;
-	NewLawnButton*			mBackButton;
+	std::unique_ptr<Sexy::Checkbox>	mFreePlantingCheckbox;
+	std::unique_ptr<Sexy::Checkbox>	mInfiniteSunCheckbox;
+	std::unique_ptr<LawnStoneButton>	mCoinsButton;
+	std::unique_ptr<LawnStoneButton>	mWinLevelButton;
+	std::unique_ptr<NewLawnButton>	mBackButton;
 
 public:
 	explicit CheatsDialog(LawnApp* theApp);

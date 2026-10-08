@@ -31,13 +31,13 @@ ControllerOptionsDialog::ControllerOptionsDialog(LawnApp* theApp) :
 	Dialog(nullptr, nullptr, Dialogs::DIALOG_CONTROLLER_OPTIONS, true, "Controller", "", "", Dialog::BUTTONS_NONE)
 {
 	mApp = theApp;
-	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
+	SetButtonTextColor(Color(255, 255, 100));
 
-	mSensitivitySlider = new Slider(IMAGE_OPTIONS_SLIDERSLOT, IMAGE_OPTIONS_SLIDERKNOB2,
+	mSensitivitySlider = std::make_unique<Slider>(IMAGE_OPTIONS_SLIDERSLOT, IMAGE_OPTIONS_SLIDERKNOB2,
 		ControllerOptionsDialog::ControllerOptionsDialog_Sensitivity, this);
 	mSensitivitySlider->SetValue((theApp->GetControllerSensitivity() - kSensMin) / (kSensMax - kSensMin));
 
-	mSunRadiusSlider = new Slider(IMAGE_OPTIONS_SLIDERSLOT, IMAGE_OPTIONS_SLIDERKNOB2,
+	mSunRadiusSlider = std::make_unique<Slider>(IMAGE_OPTIONS_SLIDERSLOT, IMAGE_OPTIONS_SLIDERKNOB2,
 		ControllerOptionsDialog::ControllerOptionsDialog_SunRadius, this);
 	mSunRadiusSlider->SetValue((theApp->GetControllerSunRadius() - kRadMin) / (kRadMax - kRadMin));
 
@@ -64,21 +64,12 @@ ControllerOptionsDialog::ControllerOptionsDialog(LawnApp* theApp) :
 	mBackButton->mTextDownOffsetX = 0;
 	mBackButton->mTextDownOffsetY = 1;
 	mBackButton->SetFont(FONT_DWARVENTODCRAFT36GREENINSET);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL, Color::White);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL_HILITE, Color::White);
+	mBackButton->SetLabelColor(Color::White);
+	mBackButton->SetLabelHiliteColor(Color::White);
 	mBackButton->mHiliteFont = FONT_DWARVENTODCRAFT36BRIGHTGREENINSET;
 }
 
-ControllerOptionsDialog::~ControllerOptionsDialog()
-{
-	delete mSensitivitySlider;
-	delete mSunRadiusSlider;
-	delete mFreeCursorCheckbox;
-	delete mCursorBoostCheckbox;
-	delete mSwapABCheckbox;
-	delete mSwapXYCheckbox;
-	delete mBackButton;
-}
+ControllerOptionsDialog::~ControllerOptionsDialog() = default;
 
 int ControllerOptionsDialog::GetPreferredHeight(int theWidth)
 {
@@ -89,25 +80,25 @@ int ControllerOptionsDialog::GetPreferredHeight(int theWidth)
 void ControllerOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
-	AddWidget(mSensitivitySlider);
-	AddWidget(mSunRadiusSlider);
-	AddWidget(mFreeCursorCheckbox);
-	AddWidget(mCursorBoostCheckbox);
-	AddWidget(mSwapABCheckbox);
-	AddWidget(mSwapXYCheckbox);
-	AddWidget(mBackButton);
+	AddWidget(mSensitivitySlider.get());
+	AddWidget(mSunRadiusSlider.get());
+	AddWidget(mFreeCursorCheckbox.get());
+	AddWidget(mCursorBoostCheckbox.get());
+	AddWidget(mSwapABCheckbox.get());
+	AddWidget(mSwapXYCheckbox.get());
+	AddWidget(mBackButton.get());
 }
 
 void ControllerOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::RemovedFromManager(theWidgetManager);
-	RemoveWidget(mSensitivitySlider);
-	RemoveWidget(mSunRadiusSlider);
-	RemoveWidget(mFreeCursorCheckbox);
-	RemoveWidget(mCursorBoostCheckbox);
-	RemoveWidget(mSwapABCheckbox);
-	RemoveWidget(mSwapXYCheckbox);
-	RemoveWidget(mBackButton);
+	RemoveWidget(mSensitivitySlider.get());
+	RemoveWidget(mSunRadiusSlider.get());
+	RemoveWidget(mFreeCursorCheckbox.get());
+	RemoveWidget(mCursorBoostCheckbox.get());
+	RemoveWidget(mSwapABCheckbox.get());
+	RemoveWidget(mSwapXYCheckbox.get());
+	RemoveWidget(mBackButton.get());
 }
 
 void ControllerOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
