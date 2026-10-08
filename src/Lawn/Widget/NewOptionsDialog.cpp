@@ -160,7 +160,7 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	// four shown the normal 43px pitch would run into the Back-to-Game button,
 	// so tighten it to 35px (the stone art overlaps its lower neighbour a bit,
 	// and draw order makes each row's top bevel win, so it reads as a list).
-	LawnStoneButton* aColumnButtons[] = { mAlmanacButton, mControllerButton, mRestartButton, mBackToMainButton };
+	LawnStoneButton* aColumnButtons[] = { mAlmanacButton.get(), mControllerButton.get(), mRestartButton.get(), mBackToMainButton.get() };
 	int aVisibleCount = 0;
 	for (LawnStoneButton* aButton : aColumnButtons)
 	{

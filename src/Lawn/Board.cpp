@@ -7835,7 +7835,7 @@ void Board::KeyDown(KeyCode theKey)
 // cursor was so the next frame's MouseMove doesn't jump.
 void Board::GamepadClickAt(int theX, int theY)
 {
-	WidgetManager* aManager = mApp->mWidgetManager;
+	WidgetManager* aManager = mApp->mWidgetManager.get();
 	int aOldX = aManager->mLastMouseX;
 	int aOldY = aManager->mLastMouseY;
 	aManager->MouseMove(theX, theY);

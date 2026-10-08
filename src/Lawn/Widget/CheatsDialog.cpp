@@ -29,7 +29,7 @@ CheatsDialog::CheatsDialog(LawnApp* theApp) :
 	Dialog(nullptr, nullptr, Dialogs::DIALOG_CHEATS, true, "Cheats", "", "", Dialog::BUTTONS_NONE)
 {
 	mApp = theApp;
-	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
+	SetButtonTextColor(Color(255, 255, 100));
 
 	mFreePlantingCheckbox = MakeNewCheckbox(
 		CheatsDialog::CheatsDialog_FreePlanting, this, theApp->mEasyPlantingCheat);
@@ -62,19 +62,12 @@ CheatsDialog::CheatsDialog(LawnApp* theApp) :
 	mBackButton->mTextDownOffsetX = 0;
 	mBackButton->mTextDownOffsetY = 1;
 	mBackButton->SetFont(FONT_DWARVENTODCRAFT36GREENINSET);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL, Color::White);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL_HILITE, Color::White);
+	mBackButton->SetLabelColor(Color::White);
+	mBackButton->SetLabelHiliteColor(Color::White);
 	mBackButton->mHiliteFont = FONT_DWARVENTODCRAFT36BRIGHTGREENINSET;
 }
 
-CheatsDialog::~CheatsDialog()
-{
-	delete mFreePlantingCheckbox;
-	delete mInfiniteSunCheckbox;
-	delete mCoinsButton;
-	delete mWinLevelButton;
-	delete mBackButton;
-}
+CheatsDialog::~CheatsDialog() = default;
 
 int CheatsDialog::GetPreferredHeight(int theWidth)
 {
@@ -85,21 +78,21 @@ int CheatsDialog::GetPreferredHeight(int theWidth)
 void CheatsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
-	AddWidget(mFreePlantingCheckbox);
-	AddWidget(mInfiniteSunCheckbox);
-	AddWidget(mCoinsButton);
-	AddWidget(mWinLevelButton);
-	AddWidget(mBackButton);
+	AddWidget(mFreePlantingCheckbox.get());
+	AddWidget(mInfiniteSunCheckbox.get());
+	AddWidget(mCoinsButton.get());
+	AddWidget(mWinLevelButton.get());
+	AddWidget(mBackButton.get());
 }
 
 void CheatsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::RemovedFromManager(theWidgetManager);
-	RemoveWidget(mFreePlantingCheckbox);
-	RemoveWidget(mInfiniteSunCheckbox);
-	RemoveWidget(mCoinsButton);
-	RemoveWidget(mWinLevelButton);
-	RemoveWidget(mBackButton);
+	RemoveWidget(mFreePlantingCheckbox.get());
+	RemoveWidget(mInfiniteSunCheckbox.get());
+	RemoveWidget(mCoinsButton.get());
+	RemoveWidget(mWinLevelButton.get());
+	RemoveWidget(mBackButton.get());
 }
 
 void CheatsDialog::Resize(int theX, int theY, int theWidth, int theHeight)

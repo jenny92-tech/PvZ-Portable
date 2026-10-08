@@ -28,7 +28,7 @@ PortOptionsDialog::PortOptionsDialog(LawnApp* theApp) :
 	Dialog(nullptr, nullptr, Dialogs::DIALOG_PORT_OPTIONS, true, "Port", "", "", Dialog::BUTTONS_NONE)
 {
 	mApp = theApp;
-	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
+	SetButtonTextColor(Color(255, 255, 100));
 
 	bool aCN = IsLocalizedUI(theApp);
 	mControllerButton = MakeButton(PortOptionsDialog::PortOptionsDialog_Controller, this,
@@ -52,18 +52,12 @@ PortOptionsDialog::PortOptionsDialog(LawnApp* theApp) :
 	mBackButton->mTextDownOffsetX = 0;
 	mBackButton->mTextDownOffsetY = 1;
 	mBackButton->SetFont(FONT_DWARVENTODCRAFT36GREENINSET);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL, Color::White);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL_HILITE, Color::White);
+	mBackButton->SetLabelColor(Color::White);
+	mBackButton->SetLabelHiliteColor(Color::White);
 	mBackButton->mHiliteFont = FONT_DWARVENTODCRAFT36BRIGHTGREENINSET;
 }
 
-PortOptionsDialog::~PortOptionsDialog()
-{
-	delete mControllerButton;
-	delete mCheatsButton;
-	delete mControlsButton;
-	delete mBackButton;
-}
+PortOptionsDialog::~PortOptionsDialog() = default;
 
 int PortOptionsDialog::GetPreferredHeight(int theWidth)
 {
@@ -74,19 +68,19 @@ int PortOptionsDialog::GetPreferredHeight(int theWidth)
 void PortOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
-	AddWidget(mControllerButton);
-	AddWidget(mCheatsButton);
-	AddWidget(mControlsButton);
-	AddWidget(mBackButton);
+	AddWidget(mControllerButton.get());
+	AddWidget(mCheatsButton.get());
+	AddWidget(mControlsButton.get());
+	AddWidget(mBackButton.get());
 }
 
 void PortOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::RemovedFromManager(theWidgetManager);
-	RemoveWidget(mControllerButton);
-	RemoveWidget(mCheatsButton);
-	RemoveWidget(mControlsButton);
-	RemoveWidget(mBackButton);
+	RemoveWidget(mControllerButton.get());
+	RemoveWidget(mCheatsButton.get());
+	RemoveWidget(mControlsButton.get());
+	RemoveWidget(mBackButton.get());
 }
 
 void PortOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)

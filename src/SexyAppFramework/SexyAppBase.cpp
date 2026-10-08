@@ -1779,7 +1779,7 @@ static MemoryImage* MakeSelectorCorner(bool flipX, bool flipY)
 {
 	const int w = kSelCornerWidth, h = kSelCornerHeight;
 	MemoryImage* aImage = new MemoryImage();
-	aImage->mBits = new uint32_t[w * h + 1];
+	aImage->mBits = std::make_unique<uint32_t[]>(w * h + 1);
 	aImage->mWidth = w;
 	aImage->mHeight = h;
 	aImage->mHasTrans = true;

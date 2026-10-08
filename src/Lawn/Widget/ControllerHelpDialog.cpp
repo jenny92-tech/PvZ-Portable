@@ -42,7 +42,7 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSetting
 	Dialog(nullptr, nullptr, Dialogs::DIALOG_CONTROLLER_HELP, true, "Controls", "", "", Dialog::BUTTONS_NONE)
 {
 	mApp = theApp;
-	SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
+	SetButtonTextColor(Color(255, 255, 100));
 
 	mSettingsButton = MakeButton(ControllerHelpDialog::ControllerHelpDialog_Settings, this,
 		IsLocalizedUI(theApp) ? "移植设置" : "Port Options");
@@ -63,16 +63,12 @@ ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSetting
 	mBackButton->mTextDownOffsetX = 0;
 	mBackButton->mTextDownOffsetY = 1;
 	mBackButton->SetFont(FONT_DWARVENTODCRAFT36GREENINSET);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL, Color::White);
-	mBackButton->SetColor(ButtonWidget::COLOR_LABEL_HILITE, Color::White);
+	mBackButton->SetLabelColor(Color::White);
+	mBackButton->SetLabelHiliteColor(Color::White);
 	mBackButton->mHiliteFont = FONT_DWARVENTODCRAFT36BRIGHTGREENINSET;
 }
 
-ControllerHelpDialog::~ControllerHelpDialog()
-{
-	delete mSettingsButton;
-	delete mBackButton;
-}
+ControllerHelpDialog::~ControllerHelpDialog() = default;
 
 int ControllerHelpDialog::GetPreferredHeight(int theWidth)
 {
@@ -83,15 +79,15 @@ int ControllerHelpDialog::GetPreferredHeight(int theWidth)
 void ControllerHelpDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::AddedToManager(theWidgetManager);
-	AddWidget(mSettingsButton);
-	AddWidget(mBackButton);
+	AddWidget(mSettingsButton.get());
+	AddWidget(mBackButton.get());
 }
 
 void ControllerHelpDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Dialog::RemovedFromManager(theWidgetManager);
-	RemoveWidget(mSettingsButton);
-	RemoveWidget(mBackButton);
+	RemoveWidget(mSettingsButton.get());
+	RemoveWidget(mBackButton.get());
 }
 
 void ControllerHelpDialog::Resize(int theX, int theY, int theWidth, int theHeight)
