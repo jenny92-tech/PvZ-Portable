@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -26,13 +26,14 @@
 #define __DESCPARSER_H__
 
 #include "Common.h"
+#include <memory>
 
 namespace Sexy
 {
 
-class DataElement 
+class DataElement
 {
-public:	
+public:
 	bool					mIsList;
 
 public:
@@ -45,7 +46,7 @@ public:
 class SingleDataElement : public DataElement
 {
 public:
-	std::string				mString;	
+	std::string				mString;
 
 public:
 	SingleDataElement();
@@ -55,7 +56,7 @@ public:
 	DataElement*			Duplicate() override;
 };
 
-typedef std::vector<DataElement*> ElementVector;
+typedef std::vector<std::unique_ptr<DataElement>> ElementVector;
 
 class ListDataElement : public DataElement
 {
@@ -66,13 +67,13 @@ public:
 	ListDataElement();
 	ListDataElement(const ListDataElement& theListDataElement);
 	~ListDataElement() override;
-	
+
 	ListDataElement&		operator=(const ListDataElement& theListDataElement);
 
 	DataElement*			Duplicate() override;
 };
 
-typedef std::map<std::string, DataElement*> DataElementMap;
+typedef std::map<std::string, std::unique_ptr<DataElement>> DataElementMap;
 typedef std::vector<double> DoubleVector;
 
 class DescParser
@@ -110,12 +111,12 @@ public:
 
 	// You must implement this one
 	virtual bool			HandleCommand(const ListDataElement& theParams) = 0;
-	
+
 public:
 	DescParser();
-	virtual ~DescParser();	
+	virtual ~DescParser();
 
-	bool					LoadDescriptor(const std::string& theFileName);	
+	bool					LoadDescriptor(const std::string& theFileName);
 };
 
 }

@@ -11,6 +11,30 @@ configurations.all {
 // -PusePrebuiltLibs=true packages prebuilt jniLibs (CI); otherwise build via CMake.
 def prebuilt = project.hasProperty('usePrebuiltLibs') && project.usePrebuiltLibs.toBoolean()
 
+// Version from git, mirroring archlinux/PKGBUILD's pkgver(); fall back to 0.1/1 without git or tags.
+def gitVersionName = {
+    try {
+        // providers.exec: plain exec is rejected at configuration time by Gradle 9's configuration cache.
+        def text = providers.exec {
+            commandLine 'git', 'describe', '--tags', '--abbrev=12'
+        }.standardOutput.asText.get().trim()
+        return text.replaceFirst(/^v/, '').replace('-', '.')
+    } catch (Exception ignored) {
+        return '0.1'
+    }
+}()
+
+def gitVersionCode = {
+    try {
+        def text = providers.exec {
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+        }.standardOutput.asText.get().trim()
+        return text.toInteger()
+    } catch (Exception ignored) {
+        return 1
+    }
+}()
+
 android {
     namespace 'io.github.wszqkzqk.pvzportable'
     compileSdk 36
@@ -19,8 +43,8 @@ android {
         applicationId "io.github.wszqkzqk.pvzportable"
         minSdk 24
         targetSdk 36
-        versionCode 1
-        versionName "0.1"
+        versionCode gitVersionCode
+        versionName gitVersionName
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -39,11 +63,23 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            // Keystore is injected via env vars by CI; absent (e.g. local builds) falls back to debug signing.
+            def storeFilePath = System.getenv('PVZP_KEYSTORE_FILE')
+            if (storeFilePath) {
+                storeFile file(storeFilePath)
+                storePassword System.getenv('PVZP_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('PVZP_KEY_ALIAS')
+                keyPassword System.getenv('PVZP_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
-            // Debug-signed so the APK installs without a release keystore
-            signingConfig signingConfigs.debug
+            signingConfig System.getenv('PVZP_KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
         }
     }
 

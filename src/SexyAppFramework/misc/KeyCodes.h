@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -121,7 +121,15 @@ namespace Sexy
 	KEYCODE_F23           = 0x86,
 	KEYCODE_F24           = 0x87,
 	KEYCODE_NUMLOCK       = 0x90,
-	KEYCODE_SCROLL        = 0x91,	
+	KEYCODE_SCROLL        = 0x91,
+	// Synthetic keycodes for gamepad actions, placed in the unused 0x92-0xB2
+	// gap. The controller input layer emits these; game screens handle them.
+	KEYCODE_GAMEPAD_PREV_SEED = 0xA4, // L1/L2: select previous seed packet
+	KEYCODE_GAMEPAD_NEXT_SEED = 0xA7, // R1/R2: select next seed packet
+	KEYCODE_GAMEPAD_PLANT     = 0xA0, // A: pick up the selected seed so the click plants it
+	KEYCODE_GAMEPAD_CONTEXT   = 0xA1, // X: store / whack hammer / slot machine lever
+	KEYCODE_GAMEPAD_ZEN       = 0xA2, // Y: wake Stinky in the Zen Garden
+	KEYCODE_GAMEPAD_SHOVEL    = 0xA3, // B in-game: cancel held item, else grab the shovel
 	KEYCODE_ASCIIBEGIN2	  = 0xB3, //ASCII + 0x80
 	KEYCODE_ASCIIEND2	  = 0xE0
 };

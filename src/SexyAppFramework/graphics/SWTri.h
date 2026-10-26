@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -53,10 +53,8 @@ public:
 	struct	SWTextureInfo
 	{
 		const unsigned int *	pTexture;
-		unsigned int		vShift, uMask, vMask;
 		int pitch;
 		unsigned int endpos;
-		int height;
 	};
 	struct	SWDiffuse
 	{

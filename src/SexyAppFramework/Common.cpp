@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -29,8 +29,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <chrono>
-#include <cstdarg>
-#include <cstdio>
+#include <fstream>
+#include <mutex>
 #include <SDL.h>
 
 #include "misc/PerfTimer.h"
@@ -49,15 +49,6 @@ static inline char ToLowerAscii(char c)
 	return (char)std::tolower((unsigned char)c);
 }
 
-static inline void SexyLogV(SDL_LogPriority thePriority, const char* theFormat, va_list theArgs)
-{
-	std::string aBuffer = Sexy::VFormat(theFormat, theArgs);
-	if (aBuffer.empty())
-		return;
-
-	SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, thePriority, "%s", aBuffer.c_str());
-}
-
 static inline bool IsUnicodeSpace(char32_t theChar)
 {
 	switch (theChar)
@@ -74,20 +65,33 @@ static inline bool IsUnicodeSpace(char32_t theChar)
 	}
 }
 
-void Sexy::PrintF(const char *text, ...)
+static std::ofstream gLogFileSink;
+static std::mutex gLogFileSinkMutex;
+
+void Sexy::RegisterLogFileSink(std::string_view thePath)
 {
-	va_list args;
-	va_start(args, text);
-	SexyLogV(SDL_LOG_PRIORITY_INFO, text, args);
-	va_end(args);
+	gLogFileSink.open(PathFromU8(thePath), std::ios::app | std::ios::binary);
+	if (!gLogFileSink)
+		LogErrorLn("Failed to open log file '{}'", thePath);
 }
 
-void Sexy::LogError(const char* theFormat, ...)
+void Sexy::DispatchLogLn(SexyLogPriority thePriority, std::string_view theText)
 {
-	va_list args;
-	va_start(args, theFormat);
-	SexyLogV(SDL_LOG_PRIORITY_ERROR, theFormat, args);
-	va_end(args);
+	if (theText.empty())
+		return;
+
+	SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, thePriority == SexyLogPriority::Error ? SDL_LOG_PRIORITY_ERROR : SDL_LOG_PRIORITY_INFO, "%.*s", static_cast<int>(theText.size()), theText.data());
+
+	std::scoped_lock aLock(gLogFileSinkMutex);
+	if (gLogFileSink.is_open())
+	{
+		gLogFileSink << theText << '\n' << std::flush;
+		if (!gLogFileSink)
+		{
+			SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_ERROR, "%s", "Failed to write to log file");
+			gLogFileSink.close();
+		}
+	}
 }
 
 int Sexy::Rand()
@@ -233,7 +237,7 @@ bool Sexy::StringToDouble(const std::string& theString, double* theDoubleVal)
 
 // TODO: Use <locale> for localization of number output?
 std::string Sexy::CommaSeperate(int theValue)
-{	
+{
 	if (theValue == 0)
 		return "0";
 
@@ -301,7 +305,7 @@ bool Sexy::IsPathRooted(std::string_view thePath)
 	if (aPath.has_root_path())
 		return true;
 
-#if defined(__SWITCH__) || defined(__3DS__)
+#if defined(__SWITCH__)
 	const size_t aColonPos = thePath.find(':');
 	if (aColonPos == std::string_view::npos || aColonPos == 0 || aColonPos + 1 >= thePath.size())
 		return false;
@@ -384,48 +388,6 @@ std::string Sexy::RemoveTrailingSlash(std::string_view theDirectory)
 
 	return PathToU8(PathFromU8(theDirectory).lexically_normal());
 }
-std::string Sexy::VFormat(const char* fmt, va_list argPtr) 
-{
-	va_list argsCopy;
-	va_copy(argsCopy, argPtr);
-
-#ifdef _WIN32
-	int required = _vscprintf(fmt, argsCopy);
-#else
-	int required = vsnprintf(nullptr, 0, fmt, argsCopy);
-#endif
-	va_end(argsCopy);
-
-	if (required <= 0)
-		return std::string();
-
-	std::string result;
-	result.resize((size_t)required + 1);
-
-	va_list argsCopy2;
-	va_copy(argsCopy2, argPtr);
-#ifdef _WIN32
-	_vsnprintf(result.data(), (size_t)required + 1, fmt, argsCopy2);
-#else
-	vsnprintf(result.data(), (size_t)required + 1, fmt, argsCopy2);
-#endif
-	va_end(argsCopy2);
-
-	result.resize((size_t)required);
-
-	return result;
-}
-
-//overloaded StrFormat: should only be used by the xml strings
-std::string Sexy::StrFormat(const char* fmt ...) 
-{
-    va_list argList;
-    va_start(argList, fmt);
-	std::string result = VFormat(fmt, argList);
-    va_end(argList);
-
-    return result;
-}
 
 std::string Sexy::Evaluate(std::string_view theString, const DefinesMap& theDefinesMap)
 {
@@ -437,7 +399,7 @@ std::string Sexy::Evaluate(std::string_view theString, const DefinesMap& theDefi
 
 		if (aPercentPos == std::string::npos)
 			break;
-		
+
 		size_t aSecondPercentPos = anEvaluatedString.find('%', aPercentPos + 1);
 		if (aSecondPercentPos == std::string::npos)
 			break;
@@ -445,11 +407,11 @@ std::string Sexy::Evaluate(std::string_view theString, const DefinesMap& theDefi
 		std::string aName = anEvaluatedString.substr(aPercentPos + 1, aSecondPercentPos - aPercentPos - 1);
 
 		std::string aValue;
-		DefinesMap::const_iterator anItr = theDefinesMap.find(aName);		
+		DefinesMap::const_iterator anItr = theDefinesMap.find(aName);
 		if (anItr != theDefinesMap.end())
 			aValue = anItr->second;
 		else
-			aValue = "";		
+			aValue = "";
 
 		anEvaluatedString.replace(aPercentPos, aSecondPercentPos - aPercentPos + 1, aValue);
 	}
@@ -477,7 +439,7 @@ std::string Sexy::XMLDecodeString(std::string_view theString)
 			{
 				std::string anEntName(theString.substr(i+1, aSemiPos-i-1));
 				i = aSemiPos;
-											
+
 				if (anEntName == "lt")
 					c = '<';
 				else if (anEntName == "amp")
@@ -493,8 +455,8 @@ std::string Sexy::XMLDecodeString(std::string_view theString)
 				else if (anEntName == "cr")
 					c = '\n';
 			}
-		}				
-		
+		}
+
 		aNewString += c;
 	}
 
@@ -519,7 +481,7 @@ std::string Sexy::XMLEncodeString(std::string_view theString)
 				aNewString += "&nbsp;";
 				continue;
 			}
-			
+
 			hasSpace = true;
 		}
 		else
@@ -530,7 +492,7 @@ std::string Sexy::XMLEncodeString(std::string_view theString)
 		case '<':
 			aNewString += "&lt;";
 			break;
-		case '&':		
+		case '&':
 			aNewString += "&amp;";
 			break;
 		case '>':
@@ -564,8 +526,6 @@ std::string Sexy::Lower(std::string_view _data)
 	return StringToLower(_data);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 int Sexy::StrFindNoCase(const char *theStr, const char *theFind)
 {
 	int p1, p2;
@@ -592,8 +552,6 @@ int Sexy::StrFindNoCase(const char *theStr, const char *theFind)
 	return -1;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 bool Sexy::StrPrefixNoCase(const char *theStr, const char *thePrefix, int maxLength)
 {
 	int i;

@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -25,21 +25,18 @@
 #include "Common.h"
 #include "Debug.h"
 
+#include <format>
 #include <mutex>
 
 #include <time.h>
-#include <stdarg.h>
+#include <SDL.h>
 
 #include "memmgr.h"
 
 bool gInAssert = false;
-// Seemingly unused
-//extern bool gSexyDumpLeakedMem = false;
 
 using namespace Sexy;
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 struct SEXY_ALLOC_INFO
 {
 	int		size;
@@ -55,18 +52,16 @@ public:
 
 public:
 	SexyAllocMap() { gSexyAllocMapValid = true; }
-	~SexyAllocMap() 
-	{ 
-		if (gShowLeaks) 
-			SexyDumpUnfreed();		
+	~SexyAllocMap()
+	{
+		if (gShowLeaks)
+			SexyDumpUnfreed();
 
-		gSexyAllocMapValid = false; 
+		gSexyAllocMapValid = false;
 	}
 };
 static SexyAllocMap gSexyAllocMap;
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 void SexyMemAddTrack(void *addr,  int asize,  const char* fname, int lnum)
 {
 	if (!gSexyAllocMapValid)
@@ -76,13 +71,11 @@ void SexyMemAddTrack(void *addr,  int asize,  const char* fname, int lnum)
 	gShowLeaks = true;
 
 	SEXY_ALLOC_INFO &info = gSexyAllocMap[addr];
-	strncpy(info.file, fname, sizeof(info.file)-1);
+	SDL_strlcpy(info.file, fname, sizeof(info.file));
 	info.line = lnum;
 	info.size = asize;
 };
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 void SexyMemRemoveTrack(void* addr)
 {
 	if (!gSexyAllocMapValid)
@@ -94,21 +87,15 @@ void SexyMemRemoveTrack(void* addr)
 		gSexyAllocMap.erase(anItr);
 };
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 void SexyDumpUnfreed()
 {
 	if (!gSexyAllocMapValid)
 		return;
 
 	std::scoped_lock aCrit(gSexyAllocMap.mCrit);
-	SexyAllocMap::iterator i;
 	int totalSize = 0;
-	char buf[8192];
 
 #ifdef SEXY_DUMP_LEAKED_MEM
-	char hex_dump[1024];
-	char ascii_dump[1024];
 	int count = 0;
 	int index = 0;
 #endif
@@ -118,44 +105,47 @@ void SexyDumpUnfreed()
 		return;
 
 	time_t aTime = time(nullptr);
-	snprintf(buf, sizeof(buf), "Memory Leak Report for %s\n", asctime(localtime(&aTime)));
-	fprintf(f, "%s", buf);
-	Sexy::PrintF("\n%s", buf);
-	for(i = gSexyAllocMap.begin(); i != gSexyAllocMap.end(); i++) 
+	std::string aHeader = std::format("Memory Leak Report for {}", asctime(localtime(&aTime)));
+	aHeader.pop_back();
+	fprintf(f, "%s\n\n", aHeader.c_str());
+	Sexy::LogInfoLn("\n{}", aHeader);
+	for (SexyAllocMap::iterator i = gSexyAllocMap.begin(); i != gSexyAllocMap.end(); i++)
 	{
-		snprintf(buf, sizeof(buf), "%s(%d) : Leak %d byte%s\n", i->second.file, i->second.line, i->second.size,i->second.size>1?"s":"");
-		Sexy::PrintF("%s", buf);
-		fprintf(f, "%s", buf);
+		std::string aLine = std::format("{}({}) : Leak {} byte{}", i->second.file, i->second.line, i->second.size, i->second.size > 1 ? "s" : "");
+		Sexy::LogInfoLn("{}", aLine);
+		fprintf(f, "%s\n", aLine.c_str());
 
 #ifdef SEXY_DUMP_LEAKED_MEM
 		unsigned char* data = (unsigned char*)i->first;
+		std::string aHexDump;
+		std::string aAsciiDump;
 
 		for (index = 0; index < i->second.size; index++)
-		{			
+		{
 			unsigned char _c = *data;
-			
+
 			if (count == 0)
-				sprintf(hex_dump, "\t%02X ", _c);
-			else
-				sprintf(hex_dump, "%s%02X ", hex_dump, _c);
-		
+				aHexDump += '\t';
+			aHexDump += std::format("{:02X} ", (unsigned int)_c);
+
 			if ((_c < 32) || (_c > 126))
 				_c = '.';
 
+			char aPrintChar = static_cast<char>(_c);
+			if (count == 0)
+				aAsciiDump += '\t';
+			aAsciiDump += aPrintChar;
 			if (count == 7)
-				sprintf(ascii_dump, "%s%c ", ascii_dump, _c);
-			else
-				sprintf(ascii_dump, "%s%c", count == 0 ? "\t" : ascii_dump, _c);
-			
+				aAsciiDump += ' ';
 
 			if (++count == 16)
 			{
 				count = 0;
-				sprintf(buf, "%s\t%s\n", hex_dump, ascii_dump);
-				fprintf(f, buf);
+				std::string aDumpLine = std::format("{}\t{}\n", aHexDump, aAsciiDump);
+				fprintf(f, "%s", aDumpLine.c_str());
 
-				memset((void*)hex_dump, 0, 1024);
-				memset((void*)ascii_dump, 0, 1024);
+				aHexDump.clear();
+				aAsciiDump.clear();
 			}
 
 			data++;
@@ -163,11 +153,11 @@ void SexyDumpUnfreed()
 
 		if (count != 0)
 		{
-			fprintf(f, hex_dump);
+			fprintf(f, "%s", aHexDump.c_str());
 			for (index = 0; index < 16 - count; index++)
 				fprintf(f, "\t");
 
-			fprintf(f, ascii_dump);
+			fprintf(f, "%s", aAsciiDump.c_str());
 
 			for (index = 0; index < 16 - count; index++)
 				fprintf(f, ".");
@@ -175,8 +165,6 @@ void SexyDumpUnfreed()
 
 		count = 0;
 		fprintf(f, "\n\n");
-		memset((void*)hex_dump, 0, 1024);	
-		memset((void*)ascii_dump, 0, 1024);
 
 #endif // SEXY_DUMP_LEAKED_MEM
 
@@ -184,10 +172,11 @@ void SexyDumpUnfreed()
 	}
 
 
-	snprintf(buf, sizeof(buf), "-----------------------------------------------------------\n");
-	fprintf(f, "%s", buf);
-	Sexy::PrintF("%s", buf);
-	snprintf(buf, sizeof(buf), "Total Unfreed: %d bytes (%dKB)\n\n", totalSize, totalSize / 1024);
-	Sexy::PrintF("%s", buf);
-	fprintf(f, "%s", buf);
+	std::string aSeparator = "-----------------------------------------------------------";
+	fprintf(f, "%s\n", aSeparator.c_str());
+	Sexy::LogInfoLn("{}", aSeparator);
+	std::string aTotal = std::format("Total Unfreed: {} bytes ({}KB)", totalSize, totalSize / 1024);
+	Sexy::LogInfoLn("{}", aTotal);
+	fprintf(f, "%s\n\n", aTotal.c_str());
+	fclose(f);
 }

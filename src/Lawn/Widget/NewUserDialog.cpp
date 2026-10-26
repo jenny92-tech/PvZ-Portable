@@ -22,17 +22,17 @@
 #include "NewUserDialog.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
+#include "../LawnCommon.h"
 #include "widget/WidgetManager.h"
 
-// GOTY @Patoke: 0x460F20
 NewUserDialog::NewUserDialog(LawnApp* theApp, bool isRename) : LawnDialog(
-	theApp, 
-	isRename ? Dialogs::DIALOG_RENAMEUSER : Dialogs::DIALOG_CREATEUSER, 
-	true, 
-	// @Patoke: these locals don't exist
-	isRename ? theApp->GetString("RENAME_USER", "RENAME USER") : theApp->GetString("NEW_USER", "NEW USER"), 
-	theApp->GetString("PLEASE_ENTER_NAME", "Please enter your name:"), 
-	"[DIALOG_BUTTON_OK]", 
+	theApp,
+	isRename ? Dialogs::DIALOG_RENAMEUSER : Dialogs::DIALOG_CREATEUSER,
+	true,
+	// these localization strings don't exist
+	isRename ? theApp->GetString("RENAME_USER", "RENAME USER") : theApp->GetString("NEW_USER", "NEW USER"),
+	theApp->GetString("PLEASE_ENTER_NAME", "Please enter your name:"),
+	"[DIALOG_BUTTON_OK]",
 	Dialog::BUTTONS_OK_CANCEL)
 {
 	mApp = theApp;
@@ -43,22 +43,19 @@ NewUserDialog::NewUserDialog(LawnApp* theApp, bool isRename) : LawnDialog(
 	CalcSize(110, 40);
 }
 
-NewUserDialog::~NewUserDialog()
-{
-	delete mNameEditWidget;
-}
+NewUserDialog::~NewUserDialog() = default;
 
 void NewUserDialog::AddedToManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::AddedToManager(theWidgetManager);
-	AddWidget(mNameEditWidget);
-	theWidgetManager->SetFocus(mNameEditWidget);
+	AddWidget(mNameEditWidget.get());
+	theWidgetManager->SetFocus(mNameEditWidget.get());
 }
 
 void NewUserDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::RemovedFromManager(theWidgetManager);
-	RemoveWidget(mNameEditWidget);
+	RemoveWidget(mNameEditWidget.get());
 }
 
 int NewUserDialog::GetPreferredHeight(int theWidth)
@@ -75,12 +72,11 @@ void NewUserDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 void NewUserDialog::Draw(Graphics* g)
 {
 	LawnDialog::Draw(g);
-	DrawEditBox(g, mNameEditWidget);
+	DrawEditBox(g, mNameEditWidget.get());
 }
 
-void NewUserDialog::EditWidgetText(int theId, const std::string& theString)
+void NewUserDialog::EditWidgetText([[maybe_unused]] int theId, [[maybe_unused]] const std::string& theString)
 {
-	(void)theId;(void)theString;
 	mApp->ButtonDepress(mId + 2000);
 }
 

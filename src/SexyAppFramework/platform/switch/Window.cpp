@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -100,10 +100,9 @@ void SexyAppBase::MakeWindow()
 
 	if (mGLInterface == nullptr)
 	{
-		mGLInterface = new GLInterface(this);
+		mGLInterface = std::make_unique<GLInterface>(this);
 		if (!InitGLInterface())
 		{
-			delete mGLInterface;
 			mGLInterface = nullptr;
 			return;
 		}

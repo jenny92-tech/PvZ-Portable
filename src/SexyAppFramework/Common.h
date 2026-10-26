@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -37,6 +37,8 @@
 #include <string_view>
 #include <type_traits>
 #include <bit>
+#include <algorithm>
+#include <format>
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -125,15 +127,27 @@ const ulong SEXY_RAND_MAX = 0x7FFFFFFF;
 
 extern bool			gDebug;
 
-void				PrintF(const char *text, ...);
-void				LogError(const char* theFormat, ...);
+enum class SexyLogPriority { Info, Error };
+
+void				DispatchLogLn(SexyLogPriority thePriority, std::string_view theText);
+void				RegisterLogFileSink(std::string_view thePath);
+
+template<typename... Args>
+void				LogInfoLn(std::format_string<Args...> theFmt, Args&&... theArgs)
+{
+	DispatchLogLn(SexyLogPriority::Info, std::vformat(theFmt.get(), std::make_format_args(theArgs...)));
+}
+
+template<typename... Args>
+void				LogErrorLn(std::format_string<Args...> theFmt, Args&&... theArgs)
+{
+	DispatchLogLn(SexyLogPriority::Error, std::vformat(theFmt.get(), std::make_format_args(theArgs...)));
+}
 
 int					Rand();
 int					Rand(int range);
 float				Rand(float range);
 void				SRand(ulong theSeed);
-extern std::string	VFormat(const char* fmt, va_list argPtr);
-extern std::string	StrFormat(const char* fmt ...);
 std::string			GetAppDataFolder();
 void				SetAppDataFolder(std::string_view thePath);
 std::string			GetAppDataPath(std::string_view theRelativePath);
@@ -175,12 +189,12 @@ void				SMemWStr(void*& _Dst, std::string_view theString);
 
 inline void			inlineLTrim(std::string &theData, std::string_view theChars = " \t\r\n")
 {
-    theData.erase(0, theData.find_first_not_of(theChars));
+	theData.erase(0, theData.find_first_not_of(theChars));
 }
 
 inline void			inlineRTrim(std::string &theData, std::string_view theChars = " \t\r\n")
 {
-    theData.resize(theData.find_last_not_of(theChars) + 1);
+	theData.resize(theData.find_last_not_of(theChars) + 1);
 }
 
 inline void			inlineTrim(std::string &theData, std::string_view theChars = " \t\r\n")
@@ -233,6 +247,61 @@ inline bool UTF8DecodeNext(std::string_view theString, size_t& theOffset, char32
 	theOutChar = aValue;
 	theOffset += aLength;
 	return true;
+}
+
+// Advance one code point forward. Returns the new offset clamped to size.
+inline size_t UTF8NextBoundary(std::string_view theString, size_t theOffset)
+{
+	if (theOffset >= theString.size())
+		return theString.size();
+	char32_t aChar = 0;
+	size_t aNext = theOffset;
+	if (UTF8DecodeNext(theString, aNext, aChar))
+		return aNext;
+	return theOffset + 1;
+}
+
+// Step one code point backward to its lead byte. Returns 0 if at the start.
+inline size_t UTF8PrevBoundary(std::string_view theString, size_t theOffset)
+{
+	if (theOffset == 0 || theString.empty())
+		return 0;
+	size_t aPos = std::min(theOffset, theString.size()) - 1;
+	while (aPos > 0 && (static_cast<unsigned char>(theString[aPos]) & 0xC0) == 0x80)
+		aPos--;
+	return aPos;
+}
+
+// Byte offset of the theCodePointIndex-th code point (size if fewer or on invalid UTF-8).
+inline size_t UTF8ByteOffsetForCodePoint(std::string_view theString, size_t theCodePointIndex)
+{
+	size_t aOffset = 0;
+	char32_t aChar = 0;
+	for (size_t i = 0; i < theCodePointIndex; i++)
+	{
+		if (!UTF8DecodeNext(theString, aOffset, aChar))
+			return theString.size();
+	}
+	return aOffset;
+}
+
+// Number of UTF-8 code points in theString.
+inline size_t UTF8CodePointCount(std::string_view theString)
+{
+	size_t aCount = 0;
+	size_t aOffset = 0;
+	char32_t aChar = 0;
+	while (UTF8DecodeNext(theString, aOffset, aChar))
+		aCount++;
+	return aCount;
+}
+
+// Code point starting at theOffset, 0 on end/error.
+inline char32_t UTF8CodePointAt(std::string_view theString, size_t theOffset)
+{
+	char32_t aChar = 0;
+	UTF8DecodeNext(theString, theOffset, aChar);
+	return aChar;
 }
 
 // Opening punctuation that must not appear at end of a line

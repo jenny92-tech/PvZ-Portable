@@ -12,13 +12,13 @@ A **cross-platform** community-driven reimplementation of Plants vs. Zombies: Ga
 | :---: | :---: | :---: |
 | Almost 100% gameplay recreation | Support for 32/64 bit systems<br>Run on Linux, Windows, macOS, Android, iOS, WebAssembly, Switch... | OpenGL ES 2.0 & SDL |
 
-🌐 **No install wanted?** [Try directly in your browser!](https://wszqkzqk.github.io/pvz-portable-wasm/pvz-portable.html) (You still need your own game data files.)
+🌐 **No install wanted?** [Try directly in your browser!](https://wszqkzqk.github.io/PvZ-Portable/pvz-portable.html) (You still need your own game data files.)
 
 **⚠️ Notice:**
 
 * This repository does **NOT** contain any copyrighted game assets (such as images, music, or fonts) owned by PopCap Games or Electronic Arts. Users must provide their own `main.pak` and `properties/` folder from a **legally purchased copy** of Plants vs. Zombies: GOTY Edition.
 * The codebase is a manual reimplementation derived from community research (such as [植物大战僵尸吧](https://tieba.baidu.com/f?ie=utf-8&kw=%E6%A4%8D%E7%89%A9%E5%A4%A7%E6%88%98%E5%83%B5%E5%B0%B8), [PVZ Wiki](https://wiki.pvz1.com/doku.php?id=home) and [PvZ Tools](https://pvz.tools/memory/)). It is written to utilize portable backends like SDL2 and OpenGL ES 2.0 (with desktop OpenGL 2.1 fallback). The author (wszqkzqk) **NEVER reverse engineered** the program; the author wrote it solely based on publicly available information and game testing. Also, code generated directly through reverse engineering will **not be accepted**.
-* This project is intended solely for **educational purposes**, focusing on **cross-platform porting techniques**, engine modernization, and learning how classic game logic can be adapted to various hardware architectures (e.g., Nintendo Switch, 3DS).
+* This project is intended solely for **educational purposes**, focusing on **cross-platform porting techniques**, engine modernization, and learning how classic game logic can be adapted to various hardware architectures.
 * Non-Commercial: This project is not affiliated with, authorized, or endorsed by PopCap Games or Electronic Arts.
 * Project icons and platform-specific logos are created by me (wszqkzqk) with the help of AI image generation tools and are not official assets of PopCap/EA.
 * To play the game using this project you **MUST** have access to the original game files by purchasing it on [EA's official website](https://www.ea.com/games/plants-vs-zombies/plants-vs-zombies) or [Steam](https://store.steampowered.com/app/3590/Plants_vs_Zombies_GOTY_Edition/).
@@ -47,6 +47,7 @@ A **cross-platform** community-driven reimplementation of Plants vs. Zombies: Ga
   - Theoretically supports big-endian platforms, but untested due to lack of hardware
 - [x] Unlockable **Hidden Limbo Page** with additional levels in the original game
   - To unlock it, open the Mini-Games / Puzzle / Survival selection screen and tap any blank area **5 times in rapid succession**
+- [x] **Record and deterministically replay** gameplay sessions — see [Recording and Playing Back Gameplay](#recording-and-playing-back-gameplay)
 
 This project supports the following platforms (including but not limited to):
 
@@ -61,7 +62,6 @@ This project supports the following platforms (including but not limited to):
 | iOS / iPadOS    | App Documents directory (Files app) | Works (sideload only; unsigned IPA)                                                    |
 | Web (WASM)      | Browser IndexedDB (saves); resources uploaded at runtime    | Works (requires a HTTP server) |
 | Nintendo Switch | sdmc:/switch/PvZPortable | Works on real hardware. Kenji-NX crashes on boot.                           |
-| Nintendo 3DS    | sdmc:/3ds/PvZPortable    | Might not have enough memory for Old 3DS and barely work on New 3DS (discontionued) |
 
 To play the game, you need the game data from PvZ GOTY. Place `main.pak` and the `properties/` folder next to the `pvz-portable` executable (the game will search for resources relative to the executable's directory). You can also use extracted data instead of `main.pak` if you prefer.
 
@@ -80,10 +80,8 @@ Examples:
 - macOS: `~/Library/Application Support/io.github.wszqkzqk/PvZPortable/`
 
 You can customize these paths via command-line parameters:
-- `-resdir="<path>"`: Set the **resource directory** (where `main.pak` and `properties/` are located). This only affects where the game looks for resources, not where it saves data.
-- `-savedir="<path>"`: Set the **save data directory** (where settings, savegames, caches, and screenshots are stored). This overrides the default OS-recommended application data path.
-
-**Note:** You **MUST** use the format `-param="<Your Path>"`. Space-separated values (e.g. `-resdir path`) are **NOT** supported.
+- `-resdir <path>` / `-resdir=<path>`: Set the **resource directory** (where `main.pak` and `properties/` are located). This only affects where the game looks for resources, not where it saves data.
+- `-savedir <path>` / `-savedir=<path>`: Set the **save data directory** (where settings, savegames, caches, and screenshots are stored). This overrides the default OS-recommended application data path.
 
 ### Special Instructions for Android
 
@@ -104,7 +102,7 @@ Long-press the app icon on your launcher to access the **Manage Data** shortcut,
 
 #### Notes
 
-- Requires Android 9.0+. The prebuilt APK is arm64-v8a only, but **you can build for other architectures** if needed.
+- Requires Android 7.0+. The prebuilt APK is arm64-v8a only, but **you can build for other architectures** if needed.
 - All data is stored in `Android/data/io.github.wszqkzqk.pvzportable/files/`. No extra storage permissions are needed — the app uses the **Storage Access Framework (SAF)** for all imports and exports.
 - Save data is interchangeable with desktop versions. See the [save data section](#save-data-compatibility-user-data-and-mid-level-saves) chapter for details.
 - The Android port is part of this project's **cross-platform porting research**. It preserves the original game's 4:3 aspect ratio and mouse-based input model — **no touch-screen-specific UI optimizations have been made**. SDL2 automatically maps touch events to mouse input, so the game is playable but not designed for mobile ergonomics.
@@ -119,19 +117,27 @@ The app's Documents folder is exposed via iTunes/Finder file sharing and the iOS
 
 #### Notes
 
-- Requires iOS 15.0+ (arm64).
+- Requires iOS 16.4+ (arm64).
 - Free Apple ID signatures expire after 7 days; TrollStore installs are permanent.
 - Same touch-to-mouse mapping and aspect ratio behavior as the Android port.
 
 ### Play in Your Browser (WebAssembly)
 
-**[▶ Play Online](https://wszqkzqk.github.io/pvz-portable-wasm/pvz-portable.html)** — open the link, load your legally purchased game resources either from a ZIP package or from `main.pak` plus the `properties/` folder, then click **Start Game**. All files stay in your browser locally and are **never uploaded to any server** (the hosting site is purely static). Save data is stored in your browser's IndexedDB and can be imported from ZIP or folder, or exported as a ZIP via the on-screen buttons.
+**[▶ Play Online](https://wszqkzqk.github.io/PvZ-Portable/pvz-portable.html)** — open the link, load your legally purchased game resources either from a ZIP package or from `main.pak` plus the `properties/` folder, then click **Start Game**. All files stay in your browser locally and are **never uploaded to any server** (the hosting site is purely static). Save data is stored in your browser's IndexedDB and can be imported from ZIP or folder, or exported as a ZIP via the on-screen buttons.
 
 You can also [download the WASM build](https://github.com/wszqkzqk/PvZ-Portable/releases) and self-host it. Note that the HTML file must be served over HTTP (e.g. `python3 -m http.server`) — opening it directly as a local file will not work due to browser security restrictions.
 
 ## Game Version Compatibility
 
-This project is designed and tested against Plants vs. Zombies **GOTY Edition 1.2.0.1073** EN (the standalone PopCap release). **Non-English GOTY editions** (1.2.0.1093 DE/ES/FR/IT or 1.1.0.1056 ZH based on 1.2.0.1073) and the **Steam GOTY Edition 1.2.0.1096** are also fully playable — all game mechanics work correctly. The only differences are minor cosmetic UI text issues caused by renamed string keys across versions, and these can be **easily fixed** by the user via a custom `properties/default.xml` (see below).
+This project is designed and tested against Plants vs. Zombies **GOTY Edition 1.2.0.1073** EN (the standalone PopCap release). **Non-English GOTY editions** (1.2.0.1093 DE/ES/FR/IT or 1.1.0.1056 ZH based on 1.2.0.1073) and the **Steam GOTY Edition 1.2.0.1096** are also fully playable — all game mechanics work correctly. The only differences are minor cosmetic UI text issues caused by renamed string keys across versions, and these can be **easily fixed** by the user via a custom `properties/pvz-portable.xml`.
+
+For **1.2.0.1096** and **non-English GOTY editions**, generate compatibility and translation overrides with:
+
+```bash
+python3 scripts/make-compat-overrides.py "/path/to/main.pak"
+```
+
+The script writes `pvz-portable.xml` to the `properties/` directory beside `main.pak`. Use `-o` to choose a different output path or `--force` to overwrite an existing file.
 
 **Recommendation:** use the **1.2.0.1073 EN** asset package for the best **out-of-box** experience.
 
@@ -144,15 +150,7 @@ This project is designed and tested against Plants vs. Zombies **GOTY Edition 1.
 | **"Restart" button label missing** | The key `[RESTART_LEVEL]` (used for the button label) was renamed to `[RESTART_LEVEL_BUTTON]` in 1.2.0.1096. |
 | **Unencountered zombie shows `???`** instead of `(not encountered yet)` | The string `[NOT_ENCOUNTERED_YET]` changed its value to `???` in 1.2.0.1096; the old text was moved to a new key `[NOT_ENCOUNTERED_YET_DESCRIPTION]`. |
 | **Crazy Dave's plant sell price shows 1/10 of the correct value** | In 1.2.0.1073, the string template `[CRAZY_DAVE_1700]` contains a trailing `0` after `{SELL_PRICE}` (i.e. `${SELL_PRICE}0`) because the engine passes the price divided by 10. In 1.2.0.1096 the trailing `0` was removed, so the displayed price becomes 1/10 of the intended amount. |
-
-All of the above can be resolved by adding the missing or corrected string entries to a `properties/default.xml` file placed alongside the game data.
 </details>
-
-### Multilingual Support
-
-PvZ-Portable supports game resource data from **non-English versions** of Plants vs. Zombies **GOTY Edition**. The engine handles BOM-encoded text files and converts legacy Windows-1252 encodings to UTF-8, so localized files will be loaded correctly. If `properties/default.xml` and/or `properties/Layout.xml` exist in the game data, they are loaded **after** `LawnStrings.txt` and can override any string value. Both files are optional; when absent, built-in English defaults are used.
-
-Since `default.xml` takes priority over `LawnStrings.txt`, users can also **create or edit their own `properties/default.xml`** to add or override any string key, making it easy to fix version-specific display issues without modifying the engine.
 
 ## Dependencies
 
@@ -160,7 +158,7 @@ Before building on PC, ensure you have the necessary dependencies installed:
 
 - **Build Tools**: `CMake`, `Ninja`, A C/C++ compiler (e.g., `gcc`, `clang`, `MSVC`) supporting **C++20** (Also need a standard library implementation like `libstdc++`, `libc++` or MSVC STL that supports C++20)
 - **Graphics**: `OpenGL ES 2.0` or `OpenGL 2.1+` (auto-detected at runtime via SDL2)
-- **Audio**: `libopenmpt`, `libogg`, `libvorbis`, `mpg123`
+- **Audio**: `libopenmpt`
 - **Image**: `libpng`, `libjpeg-turbo`
 - **Windowing/Input**: `SDL2`
 
@@ -169,7 +167,7 @@ Before building on PC, ensure you have the necessary dependencies installed:
 You can install the required dependencies using the following command:
 
 ```bash
-sudo pacman -S --needed base-devel cmake libjpeg-turbo libogg libopenmpt libpng libvorbis mpg123 ninja sdl2-compat
+sudo pacman -S --needed base-devel cmake libjpeg-turbo libopenmpt libpng ninja sdl2-compat
 ```
 
 ### Debian/Ubuntu
@@ -177,7 +175,7 @@ sudo pacman -S --needed base-devel cmake libjpeg-turbo libogg libopenmpt libpng 
 You can install the required dependencies using the following command:
 
 ```bash
-sudo apt install cmake ninja-build libogg-dev libjpeg-dev libopenmpt-dev libpng-dev libvorbis-dev libmpg123-dev libsdl2-dev
+sudo apt install cmake ninja-build libjpeg-dev libopenmpt-dev libpng-dev libsdl2-dev
 ```
 
 ### Windows (MSYS2 UCRT64)
@@ -185,7 +183,7 @@ sudo apt install cmake ninja-build libogg-dev libjpeg-dev libopenmpt-dev libpng-
 You can install the required dependencies using the following command:
 
 ```bash
-pacman -S --needed base-devel mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-libjpeg-turbo mingw-w64-ucrt-x86_64-libopenmpt mingw-w64-ucrt-x86_64-libogg mingw-w64-ucrt-x86_64-libpng mingw-w64-ucrt-x86_64-libvorbis mingw-w64-ucrt-x86_64-mpg123 mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-SDL2
+pacman -S --needed base-devel mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-libjpeg-turbo mingw-w64-ucrt-x86_64-libopenmpt mingw-w64-ucrt-x86_64-libpng mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-SDL2
 ```
 
 ### macOS (Homebrew)
@@ -193,7 +191,7 @@ pacman -S --needed base-devel mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-
 You can install the required dependencies using [Homebrew](https://brew.sh/) with the following command:
 
 ```bash
-brew install cmake dylibbundler jpeg-turbo libogg libopenmpt libpng libvorbis mpg123 ninja sdl2
+brew install cmake dylibbundler jpeg-turbo libopenmpt libpng ninja sdl2
 ```
 
 ## Build Instructions
@@ -231,7 +229,7 @@ You can customize the game features by adding options to the first `cmake` comma
 | `PVZ_DEBUG` | `OFF`<br>(`ON` if `CMAKE_BUILD_TYPE` is `Debug`) | Enable **cheat keys**, debug displays and other debug features. |
 | `DO_FIX_BUGS` | `OFF` | Apply community fixes for "bugs" of official 1.2.0.1073 GOTY Edition.[^1] However, these "bugs" are usually **considered "features"** by many players. |
 | `CONSOLE` | `OFF`<br>(`ON` if `CMAKE_BUILD_TYPE` is `Debug`) | Show a console window (Windows only). |
-| `BUILD_STATIC` | `OFF` | Link statically to create a standalone executable (Windows with MinGW-based toolchains only). Use a vcpkg `-static` triplet for MSVC instead. |
+| `BUILD_STATIC` | `OFF` | Link dependencies statically (Windows with MinGW-based toolchains, glibc-based Linux). Use a vcpkg `-static` triplet for MSVC. |
 
 [^1]: Current `DO_FIX_BUGS` includes the following fixes:
     - Fix bungee zombie duplicate sun/item drop in I, Zombie mode.
@@ -300,16 +298,27 @@ There's a Python script `scripts/pvzp-v4-converter.py` to inspect and modify `.v
 ```bash
 # Modify these paths as needed
 # View basic info
-python scripts/pvzp-v4-converter.py info ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4
+python3 scripts/pvzp-v4-converter.py info ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4
 
 # Export to YAML for editing
-python scripts/pvzp-v4-converter.py export ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4 level.yaml
+python3 scripts/pvzp-v4-converter.py export ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4 level.yaml
 
 # Import back to savegame
 # **BACKUP** your original .v4 file fist!
 mv ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4 ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4.bak
-python scripts/pvzp-v4-converter.py import level.yaml ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4
+python3 scripts/pvzp-v4-converter.py import level.yaml ~/.local/io.github.wszqkzqk/PvZPortable/userdata/game1_13.v4
 ```
+
+## Recording and Playing Back Gameplay
+
+The game can record a gameplay session into a `.dmo` demo file and replay it deterministically later. Automatically named demo files are written to the current working directory:
+
+- `-record [<path>]` / `-record=[<path>]` — record to a file named after the current local time, in the form `pvzp-YYYYMMDD-HHMMSS[-N].dmo`, or to an explicit `<path>` if given; an explicit target disables automatic retention.
+- `-play [<path>]` / `-play=[<path>]` — play back the first matching `pvzp-*.dmo` recording in descending timestamp/name order, or an explicit `<path>` if given.
+- `-playnum <N>` / `-playnum=<N>` — play back the N-th recording in descending timestamp/name order; `1` selects the first.
+- `-recnum <N>` / `-recnum=<N>` — record and keep the first `N` files matching the automatic timestamp pattern in descending timestamp/name order; other `pvzp-*.dmo` files are left untouched.
+
+This feature is primarily designed for debugging and regression testing.
 
 ## Contributing
 

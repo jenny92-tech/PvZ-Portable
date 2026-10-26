@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -25,6 +25,8 @@
 #ifndef __MEMORYIMAGE_H__
 #define __MEMORYIMAGE_H__
 
+#include <memory>
+
 #include "Image.h"
 
 #define OPTIMIZE_SOFTWARE_DRAWING
@@ -39,32 +41,33 @@ const uint32_t MEMORYCHECK_ID = 0x4BEEFADE;
 
 class NativeDisplay;
 class SexyAppBase;
+struct TextureData;
 
 class MemoryImage : public Image
 {
 public:
-	uint32_t*				mBits;
+	std::unique_ptr<uint32_t[]>		mBits;
 	int						mBitsChangedCount;
-	void*					mRenderData;
+	TextureData*			mRenderData;
 	uint32_t				mRenderFlags;	// see GLInterface.h for possible values
 
-	uint32_t*				mColorTable;	
-	uchar*					mColorIndices;
-	
+	std::unique_ptr<uint32_t[]>		mColorTable;
+	std::unique_ptr<uchar[]>		mColorIndices;
+
 	bool					mForcedMode;
 	bool					mHasTrans;
 	bool					mHasAlpha;
 	bool					mIsVolatile;
 	bool					mPurgeBits;
 	bool					mWantPal;
-	
-	uint32_t*				mNativeAlphaData;
-	uchar*					mRLAlphaData;
-	uchar*					mRLAdditiveData;	
+
+	std::unique_ptr<uint32_t[]>		mNativeAlphaData;
+	std::unique_ptr<uchar[]>		mRLAlphaData;
+	std::unique_ptr<uchar[]>		mRLAdditiveData;
 
 	bool					mBitsChanged;
 	SexyAppBase*			mApp;
-	
+
 private:
 	void					Init();
 
@@ -74,14 +77,14 @@ public:
 	virtual uchar*			GetRLAdditiveData(NativeDisplay *theNative);
 	virtual void			PurgeBits();
 	virtual void			DeleteSWBuffers();
-	virtual void			Delete3DBuffers();	
+	virtual void			Delete3DBuffers();
 	virtual void			DeleteExtraBuffers();
 	virtual void			ReInit();
 
 	virtual void			BitsChanged();
 	virtual void			CommitBits();
-	
-	virtual void			DeleteNativeData();	
+
+	virtual void			DeleteNativeData();
 
 	void					NormalBlt(Image* theImage, int theX, int theY, const Rect& theSrcRect, const Color& theColor);
 	void					AdditiveBlt(Image* theImage, int theX, int theY, const Rect& theSrcRect, const Color& theColor);
@@ -112,8 +115,8 @@ public:
 	virtual void			Clear();
 	virtual void			SetBits(uint32_t* theBits, int theWidth, int theHeight, bool commitBits = true);
 	virtual void			Create(int theWidth, int theHeight);
-	virtual uint32_t*		GetBits();	
-	
+	virtual uint32_t*		GetBits();
+
 	void					FillRect(const Rect& theRect, const Color& theColor, int theDrawMode) override;
 	void					ClearRect(const Rect& theRect) override;
 	void					DrawLine(double theStartX, double theStartY, double theEndX, double theEndY, const Color& theColor, int theDrawMode) override;
@@ -127,7 +130,7 @@ public:
 	void					BltTrianglesTex(Image *theTexture, const TriVertex theVertices[][3], int theNumTriangles, const Rect& theClipRect, const Color &theColor, int theDrawMode, float tx, float ty, bool blend) override;
 
 	virtual void			SetImageMode(bool hasTrans, bool hasAlpha);
-	virtual void			SetVolatile(bool isVolatile);	
+	virtual void			SetVolatile(bool isVolatile);
 
 	virtual bool			Palletize();
 };

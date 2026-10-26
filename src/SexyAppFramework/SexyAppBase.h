@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -33,11 +33,13 @@
 #include "misc/Buffer.h"
 #include <mutex>
 #include <thread>
+#include <time.h>
 #include <set>
 #include <string_view>
 #include "graphics/SharedImage.h"
 #include "misc/Ratio.h"
 #include <atomic>
+#include <memory>
 
 struct SDL_Cursor;
 
@@ -45,6 +47,10 @@ namespace ImageLib
 {
 	class Image;
 };
+
+// Forward-declare SDL's event union at global scope so the controller hooks can
+// take it by reference without pulling <SDL.h> into this header.
+union SDL_Event;
 
 namespace Sexy
 {
@@ -55,9 +61,10 @@ class Image;
 class GLImage;
 class Widget;
 class SoundManager;
+class _Font;
 class MusicInterface;
 class MemoryImage;
-class HTTPTransfer;
+class Graphics;
 class Dialog;
 
 class ResourceManager;
@@ -74,8 +81,6 @@ typedef std::list<WidgetSafeDeleteInfo> WidgetSafeDeleteList;
 typedef std::set<MemoryImage*> MemoryImageSet;
 typedef std::map<int, Dialog*> DialogMap;
 typedef std::list<Dialog*> DialogList;
-//typedef std::list<MSG> WindowsMessageList;
-//typedef std::basic_string<TCHAR> tstring; // string of TCHARs
 
 typedef std::map<std::string, bool, std::less<>> StringBoolMap;
 typedef std::map<std::string, int, std::less<>> StringIntMap;
@@ -93,7 +98,7 @@ enum
 	CURSOR_SIZENESW,
 	CURSOR_SIZENS,
 	CURSOR_SIZENWSE,
-	CURSOR_SIZEWE,	
+	CURSOR_SIZEWE,
 	CURSOR_WAIT,
 	CURSOR_NONE,
 	CURSOR_CUSTOM,
@@ -102,7 +107,7 @@ enum
 
 enum
 {
-	DEMO_MOUSE_POSITION,	
+	DEMO_MOUSE_POSITION,
 	DEMO_ACTIVATE_APP,
 	DEMO_SIZE,
 	DEMO_KEY_DOWN,
@@ -115,7 +120,7 @@ enum
 	DEMO_REGISTRY_GETSUBKEYS,
 	DEMO_REGISTRY_READ,
 	DEMO_REGISTRY_WRITE,
-	DEMO_REGISTRY_ERASE,	
+	DEMO_REGISTRY_ERASE,
 	DEMO_FILE_EXISTS,
 	DEMO_FILE_READ,
 	DEMO_FILE_WRITE,
@@ -126,6 +131,7 @@ enum
 	DEMO_MOUSE_WHEEL,
 	DEMO_HANDLE_COMPLETE,
 	DEMO_VIDEO_DATA,
+	DEMO_KEY_TEXT,
 	DEMO_IDLE = 31
 };
 
@@ -151,7 +157,7 @@ public:
 	void*					mSurface; // for EGL
 
 	uint32_t				mRandSeed;
-		
+
 	std::string				mCompanyName;
 	std::string				mFullCompanyName;
 	std::string				mProdName;
@@ -159,7 +165,7 @@ public:
 	std::string				mRegKey;
 	std::string				mResourceDir;
 	std::string				mCustomSaveDir;
-	
+
 	int						mRelaxUpdateBacklogCount; // app doesn't try to catch up for this many frames
 	int						mPreferredX;
 	int						mPreferredY;
@@ -182,51 +188,51 @@ public:
 
 	bool					mOnlyAllowOneCopyToRun;
 	unsigned int			mNotifyGameMessage;
-	std::mutex				mCritSect;	
-	uchar					mAdd8BitMaxTable[512];
-	WidgetManager*			mWidgetManager;
+	uint8_t					mAdd8BitMaxTable[512];
+	std::unique_ptr<WidgetManager>	mWidgetManager;
 	DialogMap				mDialogMap;
 	DialogList				mDialogList;
 	std::thread::id			mPrimaryThreadId;
+	std::thread				mLoadingThread;
 	bool					mSEHOccured;
-	bool					mShutdown;
+	std::atomic<bool>		mShutdown;
 	bool					mExitToTop;
 	bool					mIsWindowed;
 	bool					mIsPhysWindowed;
 	bool					mFullScreenWindow; // uses ChangeDisplaySettings to run fullscreen with mIsWindowed true
 	bool					mForceFullscreen;
-	bool					mForceWindowed;	
-	bool					mInitialized;	
+	bool					mForceWindowed;
+	bool					mInitialized;
 	bool					mProcessInTimer;
 	uint32_t				mTimeLoaded;
 	bool					mIsScreenSaver;
 	bool					mAllowMonitorPowersave;
-	bool					mNoDefer;	
-	bool					mFullScreenPageFlip;	
+	bool					mNoDefer;
+	bool					mFullScreenPageFlip;
 	bool					mTabletPC;
-	GLInterface*			mGLInterface;
+	MemoryImageSet			mMemoryImageSet; // must outlive mGLInterface: ~GLImage -> RemoveMemoryImage()
+	std::unique_ptr<GLInterface>	mGLInterface;
 	bool					mAlphaDisabled;
-	MusicInterface*			mMusicInterface;	
+	std::unique_ptr<MusicInterface>	mMusicInterface;
 	bool					mReadFromRegistry;
 	std::string				mRegisterLink;
-	std::string				mProductVersion;	
+	std::string				mProductVersion;
 	Image*					mCursorImages[NUM_CURSORS];
 	bool					mIsOpeningURL;
 	bool					mShutdownOnURLOpen;
 	std::string				mOpeningURL;
 	uint32_t				mOpeningURLTime;
 	uint32_t				mLastTimerTime;
-	uint32_t				mLastBigDelayTime;	
+	uint32_t				mLastBigDelayTime;
 	double					mUnmutedMusicVolume;
-	double					mUnmutedSfxVolume;	
+	double					mUnmutedSfxVolume;
 	int						mMuteCount;
 	int						mAutoMuteCount;
 	bool					mDemoMute;
 	bool					mMuteOnLostFocus;
-	MemoryImageSet			mMemoryImageSet;
 	SharedImageMap			mSharedImageMap;
 	std::atomic<bool>		mCleanupSharedImages;
-	
+
 	int						mNonDrawCount;
 	int						mFrameTime;
 
@@ -239,14 +245,15 @@ public:
 	time_t					mLastTime;
 	uint32_t				mLastUserInputTick;
 
-	int						mSleepCount;
-	int						mDrawCount;
-	int						mUpdateCount;
+	uint					mSleepCount;
+	uint					mDrawCount;
+	uint					mUpdateCount;
+	uint32_t				mStartTick;
 	int						mUpdateAppState;
 	int						mUpdateAppDepth;
-	double					mUpdateMultiplier;		
+	double					mUpdateMultiplier;
 	bool					mPaused;
-	int						mFastForwardToUpdateNum;
+	uint					mFastForwardToUpdateNum;
 	bool					mFastForwardToMarker;
 	bool					mFastForwardStep;
 	uint32_t				mLastDrawTick;
@@ -258,41 +265,37 @@ public:
 	SDL_Cursor*				mCustomCursor;
 	Image*					mCustomCursorImage;
 	int						mCustomCursorImageNum;
-	SoundManager*			mSoundManager;
+	std::unique_ptr<SoundManager>	mSoundManager;
+	std::atomic<_Font*>		mDefaultFont = nullptr; // app-injected fallback for widgets without an explicit font
 	WidgetSafeDeleteList	mSafeDeleteList;
-	bool					mMouseIn;	
+	bool					mMouseIn;
 	bool					mRunning;
 	bool					mActive;
 	bool					mMinimized;
 	bool					mPhysMinimized;
 	bool					mIsDisabled;
 	bool					mHasFocus;
-	int						mDrawTime;
-	uint32_t				mFPSStartTick;
-	int						mFPSFlipCount;
-	int						mFPSDirtyCount;
-	int						mFPSTime;
-	int						mFPSCount;
+	uint64_t				mDrawTime;
 	bool					mShowFPS;
 	int						mShowFPSMode;
-	int						mScreenBltTime;
+	uint					mScreenBltTime;
 	bool					mAutoStartLoadingThread;
-	bool					mLoadingThreadStarted;
-	bool					mLoadingThreadCompleted;
+	std::atomic<bool>		mLoadingThreadStarted;
+	std::atomic<bool>		mLoadingThreadCompleted;
 	bool					mLoaded;
 	bool					mYieldMainThread;
-	bool					mLoadingFailed;
+	std::atomic<bool>		mLoadingFailed;
 	bool					mCursorThreadRunning;
-	bool					mSysCursor;	
+	bool					mSysCursor;
 	bool					mCustomCursorsEnabled;
-	bool					mCustomCursorDirty;	
+	bool					mCustomCursorDirty;
 	bool					mLastShutdownWasGraceful;
 	bool					mIsWideWindow;
 	bool					mWriteToSexyCache;
 	bool					mSexyCacheBuffers;
 
-	int						mNumLoadingThreadTasks;
-	int						mCompletedLoadingThreadTasks;
+	std::atomic<int>		mNumLoadingThreadTasks;
+	std::atomic<int>		mCompletedLoadingThreadTasks;
 
 	// For recording/playback of program control
 	bool					mRecordingDemoBuffer;
@@ -300,19 +303,25 @@ public:
 	bool					mManualShutdown;
 	std::string				mDemoPrefix;
 	std::string				mDemoFileName;
+	bool					mHasCustomDemoFile; // an explicit file argument overrides automatic demo file selection
+	uint					mDemoRecordFileLimit;
+	size_t					mDemoPlayIndex; // -playnum: index into the timestamp/name-ordered recording list
 	Buffer					mDemoBuffer;
-	int						mDemoLength;
 	int						mLastDemoMouseX;
 	int						mLastDemoMouseY;
-	int						mLastDemoUpdateCnt;
+	uint					mLastDemoUpdateCnt;
+	uint64_t				mDemoStartTime; // wall clock at session start, base of the demo-synced clock
+	int32_t					mDemoTimeZoneOffset; // recorder's local time minus UTC in seconds, for demo-synced local time
 	bool					mDemoNeedsCommand;
 	bool					mDemoIsShortCmd;
 	int						mDemoCmdNum;
-	int						mDemoCmdOrder;
 	int						mDemoCmdBitPos;
+	uint					mDemoCmdUpdateCnt; // update tick before the current command header was read
+	uint					mDemoQueuedSince; // tick when a game-logic-owned command was queued
+	bool					mDemoCommandQueued;
 	bool					mDemoLoadingComplete;
 
-	typedef std::pair<std::string, int> DemoMarker;
+	typedef std::pair<std::string, uint32_t> DemoMarker;
 	typedef std::list<DemoMarker> DemoMarkerList;
 	DemoMarkerList			mDemoMarkerList;
 
@@ -321,7 +330,7 @@ public:
 	bool					mCtrlDown;
 	bool					mAltDown;
 	bool					mAllowAltEnter;
-	
+
 	int						mSyncRefreshRate;
 	bool					mVSyncUpdates;
 	bool					mVSyncBroken;
@@ -346,14 +355,14 @@ public:
 	StringIntMap			mIntProperties;
 	StringDoubleMap			mDoubleProperties;
 	StringStringVectorMap	mStringVectorProperties;
-	ResourceManager*		mResourceManager;
+	std::unique_ptr<ResourceManager>	mResourceManager;
 
-protected:	
+protected:
 	void					RehupFocus();
 	void					ClearKeysDown();
 	bool					ProcessDeferredMessages(bool singleMessage);
 	void					UpdateFTimeAcc();
-	virtual bool			Process(bool allowSleep = true);		
+	virtual bool			Process(bool allowSleep = true);
 	virtual void			UpdateFrames();
 	virtual bool			DoUpdateFrames();
 	virtual void			DoUpdateFramesF(float theFrac);
@@ -361,19 +370,19 @@ protected:
 	virtual void			EnforceCursor();
 	void					ResetCustomCursorCache();
 	virtual void			ReInitImages();
-	virtual void			DeleteNativeImageData();	
+	virtual void			DeleteNativeImageData();
 	virtual void			DeleteExtraImageData();
-	
-	// Loading thread methods	
+
+	// Loading thread methods
 	virtual void			LoadingThreadCompleted();
-	static void				LoadingThreadProcStub(SexyAppBase *theArg);	
+	static void				LoadingThreadProcStub(SexyAppBase *theArg);
 
 	// Cursor thread methods
 	void					CursorThreadProc();
 	static void				CursorThreadProcStub(void *theArg);
 	void					StartCursorThread();
-	
-	void					WaitForLoadingThread();				
+
+	void					WaitForLoadingThread();
 	void					ProcessSafeDeleteList();
 #ifdef __EMSCRIPTEN__
 	static void				EmscriptenMainLoopCallback();
@@ -381,17 +390,42 @@ protected:
 	void					RestoreScreenResolution();
 	void					DoExit(int theCode);
 
-	void					ShowMemoryUsage();			
+	void					ShowMemoryUsage();
 
 	// Registry helpers
-	bool					RegistryRead(const std::string& theValueName, uint32_t* theType, uchar* theValue, uint32_t* theLength);
-	bool					RegistryReadKey(const std::string& theValueName, uint32_t* theType, uchar* theValue, uint32_t* theLength);
-	bool					RegistryWrite(const std::string& theValueName, uint32_t theType, const uchar* theValue, uint32_t theLength);
+	bool					RegistryRead(const std::string& theValueName, uint32_t* theType, uint8_t* theValue, uint32_t* theLength);
+	bool					RegistryReadKey(const std::string& theValueName, uint32_t* theType, uint8_t* theValue, uint32_t* theLength);
+	bool					RegistryWrite(const std::string& theValueName, uint32_t theType, const uint8_t* theValue, uint32_t theLength);
 
-	// Demo recording helpers	
+	// Demo recording helpers
 	void					ProcessDemo();
+	inline bool				IsOnPrimaryThread() const { return std::this_thread::get_id() == mPrimaryThreadId; } // demo-synced IO is primary-thread only
 
 public:
+	// True while recording or playing back a demo session
+	inline bool				IsInDemoMode() const { return mRecordingDemoBuffer || mPlayingDemoBuffer; }
+
+	// Demo-synced wall clock: real time normally; session start time advanced by update ticks during demo record/playback
+	inline time_t			GetNowTime() const
+	{
+		if (IsInDemoMode())
+			return static_cast<time_t>(mDemoStartTime) + mUpdateCount / 100;
+		return time(nullptr);
+	}
+
+	// Demo-synced local time: localtime normally; during demo sessions the recorder's timezone is applied via UTC offset
+	inline tm				GetLocalTime(time_t theTime) const
+	{
+		if (IsInDemoMode())
+		{
+			time_t aShifted = theTime + static_cast<time_t>(mDemoTimeZoneOffset);
+			if (aShifted < 0) // MSVC/UCRT gmtime rejects pre-epoch times
+				aShifted = 0; // clamp to no earlier than 1970-01-01
+			return *gmtime(&aShifted);
+		}
+		return *localtime(&theTime);
+	}
+
 	SexyAppBase();
 	virtual ~SexyAppBase();
 
@@ -412,26 +446,26 @@ public:
 	virtual int				MsgBox(const std::string &theText, const std::string &theTitle = "Message", int theFlags = 0);
 	virtual void			Popup(const std::string& theString);
 	virtual void			LogScreenSaverError(const std::string &theError);
-	virtual void			SafeDeleteWidget(Widget* theWidget);	
+	virtual void			SafeDeleteWidget(Widget* theWidget);
 
 	virtual void			URLOpenFailed(const std::string& theURL);
 	virtual void			URLOpenSucceeded(const std::string& theURL);
-	virtual bool			OpenURL(const std::string& theURL, bool shutdownOnOpen = false);	
-	virtual std::string		GetProductVersion(const std::string& thePath);	
+	virtual bool			OpenURL(const std::string& theURL, bool shutdownOnOpen = false);
+	virtual std::string		GetProductVersion(const std::string& thePath);
 
 	virtual void			SEHOccured();
 	virtual std::string		GetGameSEHInfo();
 	virtual void			GetSEHWebParams(DefinesMap* theDefinesMap);
-	virtual void			Shutdown();	
+	virtual void			Shutdown();
 
 	virtual void			DoParseCmdLine();
 	void					SetArgs(int argc, char** argv);
-	virtual void			ParseCmdLine(const std::string& theCmdLine);
-	virtual void			HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue);
+	virtual void			HandleCmdLineParam(std::string_view theParamName, std::string_view theParamValue);
 	virtual void			HandleNotifyGameMessage(int theType); // for HWND_BROADCAST of mNotifyGameMessage (0-1000 are reserved for SexyAppBase for theType)
-	virtual void			HandleGameAlreadyRunning(); 
+	virtual void			HandleGameAlreadyRunning();
 
-	virtual void			Start();	
+	virtual void			Start();
+	void					LogPerfStats();
 	virtual void			Init();
 	virtual void			PreGLInterfaceInitHook();
 	virtual void			PostGLInterfaceInitHook();
@@ -446,20 +480,20 @@ public:
 
 	virtual void			SetMasterVolume(double theVolume);
 	virtual void			SetMusicVolume(double theVolume);
-	virtual void			SetSfxVolume(double theVolume);	
+	virtual void			SetSfxVolume(double theVolume);
 	virtual void			Mute(bool autoMute = false);
 	virtual void			Unmute(bool autoMute = false);
 
 	void					StartLoadingThread();
-	virtual double			GetLoadingThreadProgress();	
+	virtual double			GetLoadingThreadProgress();
 
 	void					CopyToClipboard(const std::string& theString);
 	std::string				GetClipboard();
 
 	void					SetCursor(int theCursorNum);
 	int						GetCursor();
-	void					EnableCustomCursors(bool enabled);	
-	virtual GLImage*		GetImage(const std::string& theFileName, bool commitBits = true);	
+	void					EnableCustomCursors(bool enabled);
+	virtual GLImage*		GetImage(const std::string& theFileName, bool commitBits = true);
 	virtual SharedImageRef	SetSharedImage(const std::string& theFileName, const std::string& theVariant, GLImage* theImage, bool* isNew);
 	virtual SharedImageRef	GetSharedImage(const std::string& theFileName, const std::string& theVariant = "", bool* isNew = nullptr);
 
@@ -489,7 +523,7 @@ public:
 	virtual void			SwitchScreenMode(bool wantWindowed);
 	virtual void			SwitchScreenMode(bool wantWindowed, bool is3d, bool force = false);
 	virtual void			SetAlphaDisabled(bool isDisabled);
-	
+
 	virtual Dialog*			DoDialog(int theDialogId, bool isModal, const std::string& theDialogHeader, const std::string& theDialogLines, const std::string& theDialogFooter, int theButtonMode);
 	virtual Dialog*			GetDialog(int theDialogId);
 	virtual void			AddDialog(int theDialogId, Dialog* theDialog);
@@ -499,27 +533,63 @@ public:
 	virtual bool			KillDialog(Dialog* theDialog);
 	virtual int				GetDialogCount();
 	virtual void			ModalOpen();
-	virtual void			ModalClose();	
+	virtual void			ModalClose();
 	void					DialogButtonPress(int theDialogId, int theButtonId) override;
 	void					DialogButtonDepress(int theDialogId, int theButtonId) override;
 
 	virtual void			GotFocus();
 	virtual void			LostFocus();
 	virtual bool			DebugKeyDown(int theKey);
-//	virtual bool			DebugKeyDownAsync(int theKey, bool ctrlDown, bool altDown);
 	virtual void			CloseRequestAsync();
 	void					InitInput();
+	bool					HandleControllerEvent(const SDL_Event& theEvent); // translate a gamepad event into virtual-cursor mouse events
+	bool					UpdateControllerCursor(); // advance the gamepad-driven virtual cursor one frame
+	bool					GetControllerCursor(int& theX, int& theY); // draw pos of the gamepad cursor, if active
+	bool					IsControllerActive(); // true if a gamepad is connected and driving input
+	bool					IsControllerGameSpeedUp();  // true while R2 has the game running at 2x
+	bool					IsControllerGameSlowDown(); // true while L2 has it easing off
+	bool					GetControllerCursorBoostEnabled();
+	void					SetControllerCursorBoostEnabled(bool theValue);
+	bool					GetControllerBox(int& theX, int& theY, int& theW, int& theH); // selector-box rect when cursor is over a lawn cell
+	// Draw the four crisp corner brackets of the gamepad selector around a box.
+	// Uses a baked sprite (no PAK/resource dependency). theCornerScale sizes the
+	// bracket sprite relative to its native size (1.0 = native 41x36).
+	void					DrawControllerSelectorFrame(Graphics* g, int theX, int theY, int theW, int theH, float theCornerScale);
+	// Controller settings (canonical runtime values; the game persists these).
+	float					GetControllerSensitivity();
+	void					SetControllerSensitivity(float theValue);
+	float					GetControllerSunRadius();
+	void					SetControllerSunRadius(float theValue);
+	bool					GetControllerFreeCursor();
+	void					SetControllerFreeCursor(bool theValue);
+	bool					GetControllerSwapAB();
+	void					SetControllerSwapAB(bool theValue);
+	bool					GetControllerSwapXY();
+	void					SetControllerSwapXY(bool theValue);
+	// Overridden by the game to make the gamepad cursor board-aware. If (px,py)
+	// is over a lawn cell, return true and the cell center + size (so the engine
+	// can magnetize the cursor and draw a cell selector box). Default: no board.
+	virtual bool			ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) { (void)thePx;(void)thePy;(void)outCX;(void)outCY;(void)outW;(void)outH; return false; }
+	// Overridden by the game to auto-collect sun/coins near the gamepad cursor.
+	virtual void			ControllerAutoCollect(int thePx, int thePy) { (void)thePx;(void)thePy; }
+	// Overridden by the game: true only during active gameplay (so L3 fast-forward
+	// applies to the board, not menus).
+	virtual bool			ControllerInGame() { return false; }
+	// Bounds the gamepad cursor is held inside during normal lawn play, so it
+	// cannot wander off the board. False where the whole screen is in play.
+	virtual bool			ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom)
+							{ (void)thePx; (void)outLeft; (void)outTop; (void)outRight; (void)outBottom; return false; }
 	bool					StartTextInput(std::string& theInput); // set theInput and return true if using soft keyboard capability and user pressed OK (e.g. Switch libnx swkbd)
 	void					StopTextInput();
-	bool					Is3DAccelerated();
+	void					SetTextInputRect(const Rect& theRect); // caret rect in logical coords; anchors the IME UI (candidate window, keyboard pan)
+	bool					Is3DAccelerated() { return true; }
 	bool					Is3DAccelerationSupported();
 	bool					Is3DAccelerationRecommended();
 	void					DemoSyncRefreshRate();
 	void					Set3DAcclerated(bool is3D, bool reinit = true);
 	virtual void			Done3dTesting();
 	virtual std::string		NotifyCrashHook(); // return file name that you want to upload
-	
-//	virtual bool			CheckSignature(const Buffer& theBuffer, const std::string& theFileName);
+
 	virtual bool			DrawDirtyStuff();
 	virtual void			Redraw(Rect* theClipRect);
 
@@ -531,7 +601,7 @@ public:
 	// Resource access methods
 	void					LoadResourceManifest();
 	void					ShowResourceError(bool doExit = false);
-	
+
 	bool					GetBoolean(std::string_view theId);
 	bool					GetBoolean(std::string_view theId, bool theDefault);
 	int						GetInteger(std::string_view theId);
@@ -547,7 +617,7 @@ public:
 	void					SetInteger(const std::string& theId, int theValue);
 	void					SetDouble(const std::string& theId, double theValue);
 	void					SetString(const std::string& theId, const std::string& theValue);
-	
+
 	// Demo access methods
 	bool					PrepareDemoCommand(bool required);
 	void					WriteDemoTimingBlock();
@@ -561,18 +631,17 @@ public:
 	void					DemoAssertIntEqual(int theInt);
 	void					DemoAddMarker(const std::string& theString);
 
-	
+
 
 	// Registry access methods
-	//bool					RegistryGetSubKeys(const std::string& theKeyName, std::vector<std::string>* theSubKeys);
 	bool					RegistryReadString(const std::string& theValueName, std::string* theString);
 	bool					RegistryReadInteger(const std::string& theValueName, int* theValue);
 	bool					RegistryReadBoolean(const std::string& theValueName, bool* theValue);
-	bool					RegistryReadData(const std::string& theValueName, uchar* theValue, uint32_t* theLength);
+	bool					RegistryReadData(const std::string& theValueName, uint8_t* theValue, uint32_t* theLength);
 	bool					RegistryWriteString(const std::string& theValueName, const std::string& theString);
 	bool					RegistryWriteInteger(const std::string& theValueName, int theValue);
 	bool					RegistryWriteBoolean(const std::string& theValueName, bool theValue);
-	bool					RegistryWriteData(const std::string& theValueName, const uchar* theValue, uint32_t theLength);	
+	bool					RegistryWriteData(const std::string& theValueName, const uint8_t* theValue, uint32_t theLength);
 	bool					RegistryEraseKey(const std::string& theKeyName);
 	void					RegistryEraseValue(const std::string& theValueName);
 

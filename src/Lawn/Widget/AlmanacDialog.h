@@ -23,9 +23,11 @@
 #define __ALMANACDIALOG_H__
 
 #include "LawnDialog.h"
+#include <array>
+#include <memory>
 
-#define NUM_ALMANAC_SEEDS 49
-#define NUM_ALMANAC_ZOMBIES 26
+constexpr const int NUM_ALMANAC_SEEDS = 49;
+constexpr const int NUM_ALMANAC_ZOMBIES = 26;
 
 constexpr const float			ALMANAC_PLANT_POSITION_X		= 578.0f;
 constexpr const float			ALMANAC_PLANT_POSITION_Y		= 140.0f;
@@ -54,18 +56,18 @@ private:
 
 public:
 	LawnApp*					mApp;
-	GameButton*					mCloseButton;
-	GameButton*					mIndexButton;
-	GameButton*					mPlantButton;
-	GameButton*					mZombieButton;
+	std::unique_ptr<GameButton>	mCloseButton;
+	std::unique_ptr<GameButton>	mIndexButton;
+	std::unique_ptr<GameButton>	mPlantButton;
+	std::unique_ptr<GameButton>	mZombieButton;
 	AlmanacPage					mOpenPage;
 	Reanimation*				mReanim[4];
 	SeedType					mSelectedSeed;
 	ZombieType					mSelectedZombie;
-	Plant*						mPlant;
-	Zombie*						mZombie;
-	Zombie*						mZombiePerfTest[400];
-	
+	std::unique_ptr<Plant>		mPlant;
+	std::unique_ptr<Zombie>		mZombie;
+	std::array<std::unique_ptr<Zombie>, 400>	mZombiePerfTest;
+
 public:
 	AlmanacDialog(LawnApp* theApp);
 	~AlmanacDialog() override;
@@ -82,7 +84,7 @@ public:
 	void						Draw(Graphics* g) override;
 	void						GetSeedPosition(SeedType theSeedType, int& x, int& y);
 	SeedType					SeedHitTest(int x, int y);
-	/*inline*/ bool				ZombieHasSilhouette(ZombieType theZombieType);
+	bool				ZombieHasSilhouette(ZombieType theZombieType);
 	bool						ZombieIsShown(ZombieType theZombieType);
 	bool						ZombieHasDescription(ZombieType theZombieType);
 	void						GetZombiePosition(ZombieType theZombieType, int& x, int& y);
@@ -93,12 +95,12 @@ public:
 //	virtual void				KeyChar(char theChar);
 
 	static ZombieType			GetZombieType(int theIndex);
-	/*inline*/ void				ShowPlant(SeedType theSeedType);
-	/*inline*/ void				ShowZombie(ZombieType theZombieType);
+	void				ShowPlant(SeedType theSeedType);
+	void				ShowZombie(ZombieType theZombieType);
 };
 extern bool gZombieDefeated[NUM_ZOMBIE_TYPES];
 
-/*inline*/ void					AlmanacInitForPlayer();
-/*inline*/ void					AlmanacPlayerDefeatedZombie(ZombieType theZombieType);
+void					AlmanacInitForPlayer();
+void					AlmanacPlayerDefeatedZombie(ZombieType theZombieType);
 
 #endif

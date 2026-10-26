@@ -22,16 +22,23 @@
 #include "GameButton.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
-#include "../../Sexy.TodLib/TodCommon.h"
+#include "../../PvzpLib/PvzpCommon.h"
 #include "graphics/Font.h"
 //#include "graphics/SysFont.h"
 #include "graphics/Graphics.h"
-#include "../../Sexy.TodLib/TodStringFile.h"
+#include "../../PvzpLib/PvzpStringFile.h"
 #include "widget/WidgetManager.h"
 
-static Color gGameButtonColors[6] = { Color(0, 0, 0), Color(0, 0, 0), Color(0, 0, 0), Color(255, 255, 255), Color(132, 132, 132), Color(212, 212, 212) };
+static constexpr ButtonColorScheme gGameButtonColors{
+	.mLabel = Color(0, 0, 0),
+	.mLabelHilite = Color(0, 0, 0),
+	.mDarkOutline = Color(0, 0, 0),
+	.mLightOutline = Color(255, 255, 255),
+	.mMediumOutline = Color(132, 132, 132),
+	.mBkg = Color(212, 212, 212),
+};
 
-void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, bool isDown, bool isHighLighted, const std::string& theLabel)
+void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, bool isDown, bool isHighLighted, const std::string& theLabel, const Color& theColor)
 {
 	Image* aLeftImage = Sexy::IMAGE_BUTTON_LEFT;
 	Image* aMiddleImage = Sexy::IMAGE_BUTTON_MIDDLE;
@@ -63,7 +70,7 @@ void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, boo
 	g->SetFont(isHighLighted ? Sexy::FONT_DWARVENTODCRAFT18BRIGHTGREENINSET : Sexy::FONT_DWARVENTODCRAFT18GREENINSET);
 	aFontX += (theWidth - Sexy::FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(theLabel)) / 2 + 1;
 	aFontY += (theHeight - Sexy::FONT_DWARVENTODCRAFT18GREENINSET->GetAscent() / 6 - 1 + Sexy::FONT_DWARVENTODCRAFT18GREENINSET->GetAscent()) / 2 - 4;
-	g->SetColor(Color::White);
+	g->SetColor(theColor);
 	g->DrawString(theLabel, aFontX, aFontY);
 }
 
@@ -83,17 +90,23 @@ GameButton::GameButton(int theId)
 	mParentWidget = nullptr;
 	mDrawStoneButton = false;
 	mTextOffsetX = mTextOffsetY = mButtonOffsetX = mButtonOffsetY = 0;
-	for (int i = 0; i < 6; i++) mColors[i] = gGameButtonColors[i];
+	mColors = gGameButtonColors;
 }
 
-GameButton::~GameButton()
+GameButton::~GameButton() = default;
+
+void GameButton::SetLabelColor(const Color& theColor)
 {
-	if (mFont)
-		delete mFont;
+	mColors.mLabel = theColor;
+}
+
+void GameButton::SetLabelHiliteColor(const Color& theColor)
+{
+	mColors.mLabelHilite = theColor;
 }
 
 bool GameButton::HaveButtonImage(Image* theImage, Rect& theRect)
-{ 
+{
 	return theImage != nullptr || theRect.mWidth != 0;
 }
 
@@ -108,24 +121,20 @@ void GameButton::DrawButtonImage(Graphics* g, Image* theImage, Rect& theRect, in
 }
 
 void GameButton::SetDisabled(bool theDisabled)
-{ 
+{
 	mDisabled = theDisabled;
 }
 
 void GameButton::SetFont(_Font* theFont)
 {
-	if (mFont)
-		delete mFont;
-	
-	mFont = theFont->Duplicate();
+	mFont.reset(theFont->Duplicate());
 }
 
 bool GameButton::IsButtonDown()
-{ 
+{
 	return mIsDown && mIsOver && !mDisabled && !mBtnNoDraw;
 }
 
-// GOTY @Patoke: 0x44AAC0
 void GameButton::Draw(Graphics* g)
 {
 	if (mBtnNoDraw)
@@ -142,8 +151,8 @@ void GameButton::Draw(Graphics* g)
 	g->mTransX += mX;
 	g->mTransY += mY;
 	if (!mFont && mLabel.size() > 0)
-		mFont = FONT_PICO129->Duplicate();
-	
+		mFont.reset(FONT_PICO129->Duplicate());
+
 	int aFontX = mTextOffsetX;
 	int aFontY = mTextOffsetY;
 	if (mFont)
@@ -155,7 +164,7 @@ void GameButton::Draw(Graphics* g)
 
 		aFontY += (mHeight - mFont->GetAscent() / 6 + mFont->GetAscent() - 1) / 2;
 	}
-	g->SetFont(mFont);
+	g->SetFont(mFont.get());
 
 	if (!isDown)
 	{
@@ -163,7 +172,7 @@ void GameButton::Draw(Graphics* g)
 			DrawButtonImage(g, mDisabledImage, mDisabledRect, 0, 0);
 		else if (mOverAlpha > 0.0f && HaveButtonImage(mOverImage, mOverRect))
 		{
-			if (HaveButtonImage(mButtonImage, mNormalRect) && mOverAlpha < 1.0f)  // 未完全过渡结束
+			if (HaveButtonImage(mButtonImage, mNormalRect) && mOverAlpha < 1.0f)  // fade transition not finished
 				DrawButtonImage(g, mButtonImage, mNormalRect, 0, 0);
 
 			g->SetColorizeImages(true);
@@ -176,7 +185,7 @@ void GameButton::Draw(Graphics* g)
 		else if (HaveButtonImage(mButtonImage, mNormalRect))
 			DrawButtonImage(g, mButtonImage, mNormalRect, 0, 0);
 
-		g->SetColor(mColors[isHighLighted ? GameButton::COLOR_LABEL_HILITE : GameButton::COLOR_LABEL]);
+		g->SetColor(isHighLighted ? mColors.mLabelHilite : mColors.mLabel);
 		g->DrawString(mLabel, aFontX, aFontY);
 
 		if (isHighLighted && mOverOverlayImage)
@@ -194,8 +203,8 @@ void GameButton::Draw(Graphics* g)
 			DrawButtonImage(g, mOverImage, mOverRect, 1, 1);
 		else
 			DrawButtonImage(g, mButtonImage, mNormalRect, 1, 1);
-		
-		g->SetColor(mColors[GameButton::COLOR_LABEL_HILITE]);
+
+		g->SetColor(mColors.mLabelHilite);
 		g->DrawString(mLabel, aFontX + 1, aFontY + 1);
 
 		if (isHighLighted && mOverOverlayImage)
@@ -210,7 +219,7 @@ void GameButton::Draw(Graphics* g)
 }
 
 void GameButton::Resize(int theX, int theY, int theWidth, int theHeight)
-{ 
+{
 	mX = theX;
 	mY = theY;
 	mWidth = theWidth;
@@ -222,7 +231,7 @@ bool GameButton::IsMouseOver()
 	if (mDisabled || mBtnNoDraw)
 		return false;
 
-	WidgetManager* aManager = mApp->mWidgetManager;
+	WidgetManager* aManager = mApp->mWidgetManager.get();
 	bool aFocusMatches = aManager->mFocusWidget && aManager->mFocusWidget == mParentWidget;
 	if (!aFocusMatches && mApp->GetDialogCount() > 0)
 		return false;
@@ -237,10 +246,9 @@ bool GameButton::IsMouseOver()
 	return Rect(mX, mY, mWidth, mHeight).Contains(aMouseX, aMouseY);
 }
 
-// GOTY @Patoke: 0x44AF50
 void GameButton::Update()
 {
-	WidgetManager* aManager = mApp->mWidgetManager;
+	WidgetManager* aManager = mApp->mWidgetManager.get();
 	mIsOver = IsMouseOver();
 
 	bool aFocusMatches = aManager->mFocusWidget && aManager->mFocusWidget == mParentWidget;
@@ -252,7 +260,7 @@ void GameButton::Update()
 	if (!mIsDown && !mIsOver && mOverAlpha > 0)
 	{
 		if (mOverAlphaSpeed < 0)
-		{ 
+		{
 			mOverAlpha = 0;
 			return;
 		}
@@ -275,17 +283,17 @@ void GameButton::Update()
 
 void GameButton::SetLabel(std::string_view theLabel)
 {
-	mLabel = TodStringTranslate(theLabel);
+	mLabel = PvzpStringTranslate(theLabel);
 }
 
 void NewLawnButton::SetLabel(std::string_view theLabel)
 {
-	mLabel = TodStringTranslate(theLabel);
+	mLabel = PvzpStringTranslate(theLabel);
 }
 
 void LawnStoneButton::SetLabel(std::string_view theLabel)
 {
-	mLabel = TodStringTranslate(theLabel);
+	mLabel = PvzpStringTranslate(theLabel);
 }
 
 void LawnStoneButton::Draw(Graphics* g)
@@ -294,12 +302,12 @@ void LawnStoneButton::Draw(Graphics* g)
 		return;
 
 	bool isDown = (mIsDown && mIsOver && !mDisabled) ^ mInverted;
-	DrawStoneButton(g, 0, 0, mWidth, mHeight, isDown, mIsOver, mLabel);
+	DrawStoneButton(g, 0, 0, mWidth, mHeight, isDown, mIsOver, mLabel, mLabelColor);
 }
 
-LawnStoneButton* MakeButton(int theId, ButtonListener* theListener, std::string_view theText)
+std::unique_ptr<LawnStoneButton> MakeButton(int theId, ButtonListener* theListener, std::string_view theText)
 {
-	LawnStoneButton* aButton = new LawnStoneButton(nullptr, theId, theListener);
+	auto aButton = std::make_unique<LawnStoneButton>(nullptr, theId, theListener);
 	aButton->SetLabel(theText);
 
 	aButton->mTranslateX = 1;
@@ -310,7 +318,6 @@ LawnStoneButton* MakeButton(int theId, ButtonListener* theListener, std::string_
 	return aButton;
 }
 
-// GOTY @Patoke: 0x44B2B0
 NewLawnButton::NewLawnButton(Image* theComponentImage, int theId, ButtonListener* theListener) : DialogButton(theComponentImage, theId, theListener)
 {
 	mHiliteFont = nullptr;
@@ -319,7 +326,7 @@ NewLawnButton::NewLawnButton(Image* theComponentImage, int theId, ButtonListener
 	mButtonOffsetX = 0;
 	mButtonOffsetY = 0;
 	mUsePolygonShape = false;
-	SetColor(ButtonWidget::COLOR_BKG, Color::White);
+	SetBkgColor(Color::White);
 }
 
 NewLawnButton::~NewLawnButton()
@@ -328,7 +335,6 @@ NewLawnButton::~NewLawnButton()
 	//	delete mHiliteFont;
 }
 
-// GOTY @Patoke: 0x44B383
 void NewLawnButton::Draw(Graphics* g)
 {
 	if (mBtnNoDraw)
@@ -350,12 +356,12 @@ void NewLawnButton::Draw(Graphics* g)
 	g->SetColorizeImages(true);
 	if (!isDown)
 	{
-		g->SetColor(mColors[ButtonWidget::COLOR_BKG]);
+		g->SetColor(mColors.mBkg);
 		if (mDisabled && HaveButtonImage(mDisabledImage, mDisabledRect))
 			DrawButtonImage(g, mDisabledImage, mDisabledRect, mButtonOffsetX, mButtonOffsetY);
 		else if (mOverAlpha > 0.0f && HaveButtonImage(mOverImage, mOverRect))
 		{
-			if (HaveButtonImage(mButtonImage, mNormalRect) && mOverAlpha < 1.0f)  // 未完全过渡结束
+			if (HaveButtonImage(mButtonImage, mNormalRect) && mOverAlpha < 1.0f)  // fade transition not finished
 				DrawButtonImage(g, mButtonImage, mNormalRect, mButtonOffsetX, mButtonOffsetY);
 
 			g->mColor.mAlpha = mOverAlpha * 255;
@@ -369,19 +375,19 @@ void NewLawnButton::Draw(Graphics* g)
 		g->SetColorizeImages(false);
 		if (mIsOver)
 		{
-			g->SetFont(mHiliteFont ? mHiliteFont : mFont);
-			g->SetColor(mColors[ButtonWidget::COLOR_LABEL_HILITE]);
+			g->SetFont(mHiliteFont ? mHiliteFont : mFont.get());
+			g->SetColor(mColors.mLabelHilite);
 		}
 		else
 		{
-			g->SetFont(mFont);
-			g->SetColor(mColors[ButtonWidget::COLOR_LABEL]);
+			g->SetFont(mFont.get());
+			g->SetColor(mColors.mLabel);
 		}
 		g->DrawString(mLabel, aFontX, aFontY);
 	}
 	else
 	{
-		g->SetColor(mColors[ButtonWidget::COLOR_BKG]);
+		g->SetColor(mColors.mBkg);
 		if (HaveButtonImage(mDownImage, mDownRect))
 			DrawButtonImage(g, mDownImage, mDownRect, mButtonOffsetX + mTranslateX, mButtonOffsetY + mTranslateY);
 		else if (HaveButtonImage(mOverImage, mOverRect))
@@ -390,25 +396,23 @@ void NewLawnButton::Draw(Graphics* g)
 			DrawButtonImage(g, mButtonImage, mNormalRect, mButtonOffsetX + mTranslateX, mButtonOffsetY + mTranslateY);
 
 		g->SetColorizeImages(false);
-		g->SetFont(mHiliteFont ? mHiliteFont : mFont);
-		g->SetColor(mColors[ButtonWidget::COLOR_LABEL_HILITE]);
+		g->SetFont(mHiliteFont ? mHiliteFont : mFont.get());
+		g->SetColor(mColors.mLabelHilite);
 		g->DrawString(mLabel, aFontX + mTextDownOffsetX, aFontY + mTextDownOffsetY);
 	}
 }
 
-// GOTY @Patoke: 0x44B7C0
 bool NewLawnButton::IsPointVisible(int x, int y)
 {
 	if (!mUsePolygonShape)
 		return DialogButton::IsPointVisible(x, y);
 
-	return TodIsPointInPolygon(mPolygonShape, 4, SexyVector2(x, y));
+	return PvzpIsPointInPolygon(mPolygonShape, 4, SexyVector2(x, y));
 }
 
-// GOTY @Patoke: 0x44B810
-NewLawnButton* MakeNewButton(int theId, ButtonListener* theListener, std::string_view theText, _Font* theFont, Image* theImageNormal, Image* theImageOver, Image* theImageDown)
+std::unique_ptr<NewLawnButton> MakeNewButton(int theId, ButtonListener* theListener, std::string_view theText, _Font* theFont, Image* theImageNormal, Image* theImageOver, Image* theImageDown)
 {
-	NewLawnButton* aButton = new NewLawnButton(nullptr, theId, theListener);
+	auto aButton = std::make_unique<NewLawnButton>(nullptr, theId, theListener);
 	aButton->SetFont(theFont == nullptr ? Sexy::FONT_BRIANNETOD12 : theFont);
 	aButton->SetLabel(theText);
 
@@ -423,9 +427,4 @@ NewLawnButton* MakeNewButton(int theId, ButtonListener* theListener, std::string
 	aButton->mTranslateY = 1;
 
 	return aButton;
-}
-
-void NewLawnButton::SetOffset(int theX, int theY) {
-	this->mButtonOffsetX = theX;
-	this->mButtonOffsetY = theY;
 }

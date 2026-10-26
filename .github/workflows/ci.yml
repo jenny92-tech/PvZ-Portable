@@ -13,7 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VCPKG_BINARY_SOURCES: clear
+  # vcpkg binary cache; restored/saved per-OS via actions/cache below
+  VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg-cache,readwrite
 
 jobs:
   build-archlinux:
@@ -30,12 +31,7 @@ jobs:
         pacman -Syu --noconfirm
         pacman -S --noconfirm \
           cmake \
-          libjpeg-turbo \
-          libogg \
           libopenmpt \
-          libpng \
-          libvorbis \
-          mpg123 \
           ninja \
           sdl2-compat \
           sudo
@@ -68,6 +64,174 @@ jobs:
         name: pvz-portable-archlinux
         path: dist/
 
+  build-linux-static:
+    name: Build for Linux (x86_64, static)
+    runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux_2_34_x86_64 # Old glibc baseline with a recent toolchain
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Fix Git Safe Directory
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+    - name: Install Dependencies
+      run: |
+        dnf install -y \
+          alsa-lib-devel \
+          libdecor-devel \
+          libXcursor-devel \
+          libXext-devel \
+          libXi-devel \
+          libXrandr-devel \
+          libXScrnSaver-devel \
+          libxkbcommon-devel \
+          mesa-libGL-devel \
+          nasm \
+          ninja-build \
+          pipewire-devel \
+          pkgconf-pkg-config \
+          pulseaudio-libs-devel \
+          wayland-devel \
+          wget \
+          zlib-devel \
+          zlib-static
+
+    - name: Resolve Dep Versions
+      run: |
+        SDL2_TAG=$(git ls-remote --tags https://github.com/libsdl-org/SDL.git 'refs/tags/release-2.*' \
+          | sed 's|.*refs/tags/release-||' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+        if [ -z "$SDL2_TAG" ]; then
+          SDL2_TAG="2.32.10" # Fallback to a known stable version if tag retrieval fails
+        fi
+        echo "SDL2_TAG=$SDL2_TAG" >> "$GITHUB_ENV"
+
+        OPENMPT_TAG=$(git ls-remote --tags https://github.com/OpenMPT/openmpt.git 'refs/tags/libopenmpt-*' \
+          | sed 's|.*refs/tags/libopenmpt-||' \
+          | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+        if [ -z "$OPENMPT_TAG" ]; then
+          OPENMPT_TAG="0.8.4" # Fallback to a known stable version if tag retrieval fails
+        fi
+        echo "OPENMPT_TAG=$OPENMPT_TAG" >> "$GITHUB_ENV"
+
+        LIBPNG_VERSION=$(git ls-remote --tags https://github.com/pnggroup/libpng.git 'refs/tags/v1.6.*' \
+          | sed 's|.*refs/tags/v||' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+        if [ -z "$LIBPNG_VERSION" ]; then
+          LIBPNG_VERSION="1.6.58" # Fallback to a known stable version if tag retrieval fails
+        fi
+        echo "LIBPNG_VERSION=$LIBPNG_VERSION" >> "$GITHUB_ENV"
+
+        JPEG_TURBO_VERSION=$(git ls-remote --tags https://github.com/libjpeg-turbo/libjpeg-turbo.git 'refs/tags/[0-9]*' \
+          | sed 's|.*refs/tags/||' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+        if [ -z "$JPEG_TURBO_VERSION" ]; then
+          JPEG_TURBO_VERSION="3.1.3" # Fallback to a known stable version if tag retrieval fails
+        fi
+        echo "JPEG_TURBO_VERSION=$JPEG_TURBO_VERSION" >> "$GITHUB_ENV"
+
+        echo "Using SDL2 $SDL2_TAG, libopenmpt $OPENMPT_TAG,"
+        echo "libpng $LIBPNG_VERSION, libjpeg-turbo $JPEG_TURBO_VERSION"
+
+    - name: Restore Source-Built Deps Cache
+      id: deps-cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/pvz-deps
+        # Bump the -vN suffix when the dep build recipe changes
+        key: linux-static-deps-v4-${{ env.SDL2_TAG }}-${{ env.OPENMPT_TAG }}-${{ env.LIBPNG_VERSION }}-${{ env.JPEG_TURBO_VERSION }}
+
+    - name: Build SDL2 (static)
+      if: steps.deps-cache.outputs.cache-hit != 'true'
+      run: |
+        wget -q "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_TAG}/SDL2-${SDL2_TAG}.tar.gz"
+        tar xf "SDL2-${SDL2_TAG}.tar.gz"
+        # Use SDL's built-in iconv for wider glibc compatibility, including glibc installs without iconv
+        cmake -G Ninja -B build-sdl2 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$HOME/pvz-deps" \
+          -DSDL_SHARED=OFF \
+          -DSDL_STATIC=ON \
+          -DSDL_TEST=OFF \
+          -DSDL_KMSDRM=OFF \
+          -DSDL_JACK=OFF \
+          -DSDL_SNDIO=OFF \
+          -DSDL_DBUS=OFF \
+          -DSDL_IBUS=OFF \
+          -DSDL_LIBUDEV=OFF \
+          -DSDL_LIBSAMPLERATE=OFF \
+          -DSDL_SYSTEM_ICONV=OFF \
+          "SDL2-${SDL2_TAG}"
+        cmake --build build-sdl2 -j$(nproc)
+        cmake --install build-sdl2
+
+    - name: Build libopenmpt (static)
+      if: steps.deps-cache.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth=1 --branch "libopenmpt-${OPENMPT_TAG}" https://github.com/OpenMPT/openmpt.git libopenmpt-src
+        cd libopenmpt-src
+        make CONFIG=gcc \
+          STATIC_LIB=1 SHARED_LIB=0 \
+          EXAMPLES=0 OPENMPT123=0 TEST=0 \
+          NO_ZLIB=1 NO_MPG123=1 NO_OGG=1 NO_VORBIS=1 NO_VORBISFILE=1 \
+          NO_PORTAUDIO=1 NO_PORTAUDIOCPP=1 NO_PULSEAUDIO=1 \
+          NO_SDL2=1 NO_FLAC=1 NO_SNDFILE=1 \
+          -j$(nproc)
+        make CONFIG=gcc \
+          STATIC_LIB=1 SHARED_LIB=0 \
+          EXAMPLES=0 OPENMPT123=0 TEST=0 \
+          PREFIX="$HOME/pvz-deps" install
+
+    - name: Build Codec Libraries (static)
+      if: steps.deps-cache.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth=1 --branch "v${LIBPNG_VERSION}" https://github.com/pnggroup/libpng.git libpng-src
+        cmake -G Ninja -B build-libpng libpng-src \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$HOME/pvz-deps" \
+          -DPNG_SHARED=OFF \
+          -DPNG_STATIC=ON \
+          -DPNG_EXECUTABLES=OFF \
+          -DPNG_TESTS=OFF
+        cmake --build build-libpng -j$(nproc)
+        cmake --install build-libpng
+
+        git clone --depth=1 --branch "${JPEG_TURBO_VERSION}" https://github.com/libjpeg-turbo/libjpeg-turbo.git libjpeg-turbo-src
+        cmake -G Ninja -B build-jpeg libjpeg-turbo-src \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$HOME/pvz-deps" \
+          -DENABLE_SHARED=OFF \
+          -DENABLE_STATIC=ON \
+          -DWITH_TURBOJPEG=OFF
+        cmake --build build-jpeg -j$(nproc)
+        cmake --install build-jpeg
+
+    # Skipped on failure, so partial deps never poison the cache.
+    - name: Save Source-Built Deps Cache
+      if: steps.deps-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/pvz-deps
+        key: linux-static-deps-v4-${{ env.SDL2_TAG }}-${{ env.OPENMPT_TAG }}-${{ env.LIBPNG_VERSION }}-${{ env.JPEG_TURBO_VERSION }}
+
+    - name: Build PvZ-Portable
+      run: |
+        cmake -G Ninja -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_STATIC=ON \
+          -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+          -DCMAKE_PREFIX_PATH="$HOME/pvz-deps"
+        cmake --build build
+
+        mkdir -p dist
+        cp build/pvz-portable dist/
+        strip dist/pvz-portable
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: pvz-portable-linux-static
+        path: dist/
+
   build-windows-msys2-ucrt64:
     name: Build for Windows (MSYS2 UCRT64)
     runs-on: windows-latest
@@ -84,12 +248,7 @@ jobs:
           base-devel
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-gcc
-          mingw-w64-ucrt-x86_64-libjpeg-turbo
           mingw-w64-ucrt-x86_64-libopenmpt
-          mingw-w64-ucrt-x86_64-libogg
-          mingw-w64-ucrt-x86_64-libpng
-          mingw-w64-ucrt-x86_64-libvorbis
-          mingw-w64-ucrt-x86_64-mpg123
           mingw-w64-ucrt-x86_64-ninja
           mingw-w64-ucrt-x86_64-SDL2
 
@@ -120,6 +279,24 @@ jobs:
 
     - uses: ilammy/msvc-dev-cmd@v1
 
+    # Key tracks the MSVC toolset (part of vcpkg's ABI hash) but not the system CMake version: vcpkg builds ports with its own pinned CMake.
+    - name: Get toolchain ID for cache key
+      shell: pwsh
+      run: |
+        $tc = $env:VCToolsVersion
+        if (-not $tc) { $tc = "unknown" }
+        echo "VCPKG_TC=msvc-$tc" >> $env:GITHUB_ENV
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v6
+      with:
+        path: vcpkg-cache
+        # Triplet is in the key so the x86 and x64 jobs don't share caches.
+        key: vcpkg-windows-x64-${{ env.VCPKG_TC }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-windows-x64-${{ env.VCPKG_TC }}-
+          vcpkg-windows-x64-
+
     - name: Install Ninja
       run: choco install ninja -y
 
@@ -143,6 +320,60 @@ jobs:
         name: pvz-portable-windows-msvc-x64
         path: dist/
 
+  # 32-bit coverage build: catches pointer-size/alignment assumptions.
+  build-windows-msvc-x86:
+    name: Build for Windows (MSVC x86)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+
+    # Key tracks the MSVC toolset (part of vcpkg's ABI hash) but not the system CMake version: vcpkg builds ports with its own pinned CMake.
+    - name: Get toolchain ID for cache key
+      shell: pwsh
+      run: |
+        $tc = $env:VCToolsVersion
+        if (-not $tc) { $tc = "unknown" }
+        echo "VCPKG_TC=msvc-$tc" >> $env:GITHUB_ENV
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v6
+      with:
+        path: vcpkg-cache
+        # Triplet is in the key so the x86 and x64 jobs don't share caches.
+        key: vcpkg-windows-x86-${{ env.VCPKG_TC }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-windows-x86-${{ env.VCPKG_TC }}-
+          vcpkg-windows-x86-
+
+    - name: Install Ninja
+      run: choco install ninja -y
+
+    - name: Setup vcpkg (manifest mode)
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: vcpkg.json
+
+    - name: Compile PvZ-Portable for Windows (MSVC)
+      shell: pwsh
+      run: |
+        cmake -G "Ninja" -B build -DCMAKE_BUILD_TYPE=Release -DCONSOLE=OFF -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x86-windows-static
+        cmake --build build
+
+        New-Item -ItemType Directory -Force -Path dist | Out-Null
+        Copy-Item build/pvz-portable.exe dist/
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: pvz-portable-windows-msvc-x86
+        path: dist/
+
   # build-switch:
   #   name: Build for Switch
   #   runs-on: ubuntu-latest
@@ -157,9 +388,16 @@ jobs:
   #       shell: bash
   #       run: |
   #         source $DEVKITPRO/switchvars.sh
-  #         git clone https://github.com/OpenMPT/openmpt
+  #         OPENMPT_TAG=$(git ls-remote --tags https://github.com/OpenMPT/openmpt.git 'refs/tags/libopenmpt-*' \
+  #           | sed 's|.*refs/tags/libopenmpt-||' \
+  #           | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+  #         if [ -z "$OPENMPT_TAG" ]; then
+  #           OPENMPT_TAG="0.8.4" # Fallback to a known stable version if tag retrieval fails
+  #         fi
+  #         git clone --depth=1 --branch "libopenmpt-${OPENMPT_TAG}" https://github.com/OpenMPT/openmpt.git openmpt
   #         cd openmpt
-  #         make CONFIG=gcc SHARED_LIB=0 DYNLINK=0 EXAMPLES=0 OPENMPT123=0 TEST=0 PREFIX=$PORTLIBS_PREFIX install 
+  #         make CONFIG=gcc SHARED_LIB=0 DYNLINK=0 EXAMPLES=0 OPENMPT123=0 TEST=0 -j$(nproc)
+  #         make CONFIG=gcc SHARED_LIB=0 DYNLINK=0 EXAMPLES=0 OPENMPT123=0 TEST=0 PREFIX=$PORTLIBS_PREFIX install
 
   #     - name: Compile PvZ-Portable for Switch
   #       shell: bash
@@ -168,7 +406,7 @@ jobs:
   #         mkdir build
   #         cd build
   #         aarch64-none-elf-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE=-O2
-  #         make
+  #         make -j$(nproc)
   #         aarch64-none-elf-strip pvz-portable.elf
 
   #     - name: Upload Artifact
@@ -192,12 +430,7 @@ jobs:
         brew update
         brew install cmake \
           dylibbundler \
-          jpeg-turbo \
-          libogg \
           libopenmpt \
-          libpng \
-          libvorbis \
-          mpg123 \
           ninja \
           sdl2
 
@@ -214,6 +447,10 @@ jobs:
 
         echo "Bundling dependencies..."
         dylibbundler -of -b -x dist/pvz-portable -d dist/libs -p @executable_path/libs/
+
+        # Homebrew's SDL2 formula is sdl2-compat, which loads SDL3 at runtime.
+        # dylibbundler cannot discover libraries loaded with dlopen(), so bundle it explicitly.
+        install -m 755 "$(brew --prefix sdl3)/lib/libSDL3.dylib" dist/libs/libSDL3.dylib
 
         codesign --force --deep -s - dist/pvz-portable
 
@@ -241,6 +478,8 @@ jobs:
 
     - name: Set up Android SDK
       uses: android-actions/setup-android@v4
+      with:
+        packages: '' # the build needs no extra SDK packages
 
     - name: Install Android NDK
       run: |
@@ -260,7 +499,7 @@ jobs:
     - name: Download SDL2 Source
       run: |
         SDL2_TAG=$(git ls-remote --tags https://github.com/libsdl-org/SDL.git 'refs/tags/release-2.*' \
-          | sed 's|.*refs/tags/release-||' | sort -V | tail -1)
+          | sed 's|.*refs/tags/release-||' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
         if [ -z "$SDL2_TAG" ]; then
           SDL2_TAG="2.32.10" # Fallback to a known stable version if tag retrieval fails
         fi
@@ -268,6 +507,21 @@ jobs:
         wget -q "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_TAG}/SDL2-${SDL2_TAG}.tar.gz"
         tar xf "SDL2-${SDL2_TAG}.tar.gz"
         mv "SDL2-${SDL2_TAG}" sdl2-src
+
+    # Key tracks the NDK version (compiler + chainload toolchain are in vcpkg's ABI hash) but not the system CMake version: vcpkg builds ports with its own pinned CMake.
+    - name: Get toolchain ID for cache key
+      run: |
+        NDK_VER=$(grep -oP 'Pkg\.Revision = \K[\d.]+' "$ANDROID_NDK/source.properties" || echo unknown)
+        echo "VCPKG_TC=ndk-$NDK_VER" >> "$GITHUB_ENV"
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v6
+      with:
+        path: vcpkg-cache
+        key: vcpkg-android-${{ env.VCPKG_TC }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-android-${{ env.VCPKG_TC }}-
+          vcpkg-android-
 
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
@@ -331,12 +585,35 @@ jobs:
         echo "Collected .so files:"
         ls -lh $JNILIBS/
 
+    - name: Decode release keystore
+      env:
+        PVZP_KEYSTORE_BASE64: ${{ secrets.PVZP_KEYSTORE_BASE64 }}
+        PVZP_KEYSTORE_PASSWORD: ${{ secrets.PVZP_KEYSTORE_PASSWORD }}
+        PVZP_KEY_ALIAS: ${{ secrets.PVZP_KEY_ALIAS }}
+        PVZP_KEY_PASSWORD: ${{ secrets.PVZP_KEY_PASSWORD }}
+      run: |
+        # Secrets are empty on fork PRs; the build then falls back to debug signing.
+        if [ -n "$PVZP_KEYSTORE_BASE64" ] && [ -n "$PVZP_KEYSTORE_PASSWORD" ] && [ -n "$PVZP_KEY_ALIAS" ] && [ -n "$PVZP_KEY_PASSWORD" ]; then
+          echo "$PVZP_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/pvzp-release.keystore"
+          echo "PVZP_KEYSTORE_FILE=$RUNNER_TEMP/pvzp-release.keystore" >> "$GITHUB_ENV"
+        fi
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v6
+      with:
+        # sdl2-src ships its own wrapper jar, which is not in Gradle's known checksum database
+        validate-wrappers: false
+
     - name: Build APK with Gradle
+      env:
+        PVZP_KEYSTORE_PASSWORD: ${{ secrets.PVZP_KEYSTORE_PASSWORD }}
+        PVZP_KEY_ALIAS: ${{ secrets.PVZP_KEY_ALIAS }}
+        PVZP_KEY_PASSWORD: ${{ secrets.PVZP_KEY_PASSWORD }}
       run: |
         cd android
         echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-        # Use gradle wrapper; package pre-built native libraries into a release APK (debug-signed)
+        # Use gradle wrapper; package pre-built native libraries into a release APK
         gradle wrapper
         ./gradlew assembleRelease -PusePrebuiltLibs=true --no-daemon
 
@@ -355,11 +632,26 @@ jobs:
     name: Build for iOS (arm64)
     runs-on: macos-latest
     env:
-      IOS_DEPLOY_TARGET: "15.0"
+      IOS_DEPLOY_TARGET: "16.4"
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 0
+
+    # Key tracks the clang version (part of vcpkg's ABI hash) but not the system CMake version: vcpkg builds ports with its own pinned CMake.
+    - name: Get toolchain ID for cache key
+      run: |
+        CLANG_VER=$(clang --version | head -1 | sed -nE 's/.*version ([0-9.]+).*/\1/p')
+        echo "VCPKG_TC=clang-${CLANG_VER:-unknown}" >> "$GITHUB_ENV"
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v6
+      with:
+        path: vcpkg-cache
+        key: vcpkg-ios-${{ env.VCPKG_TC }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'CMake/triplets/arm64-ios.cmake') }}
+        restore-keys: |
+          vcpkg-ios-${{ env.VCPKG_TC }}-
+          vcpkg-ios-
 
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
@@ -372,6 +664,7 @@ jobs:
 
         cmake -B $BUILD_DIR \
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DVCPKG_OVERLAY_TRIPLETS=$GITHUB_WORKSPACE/CMake/triplets \
           -DVCPKG_TARGET_TRIPLET=arm64-ios \
           -DCMAKE_SYSTEM_NAME=iOS \
           -DCMAKE_OSX_DEPLOYMENT_TARGET=$IOS_DEPLOY_TARGET \
@@ -419,8 +712,8 @@ jobs:
       run: |
         SYSROOT="$(em-config EMSCRIPTEN_ROOT)/cache/sysroot"
         OPENMPT_TAG=$(git ls-remote --tags https://github.com/OpenMPT/openmpt.git 'refs/tags/libopenmpt-*' \
-          | grep -v '\^{}' | sed 's|.*refs/tags/libopenmpt-||' \
-          | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          | sed 's|.*refs/tags/libopenmpt-||' \
+          | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
         if [ -z "$OPENMPT_TAG" ]; then
           OPENMPT_TAG="0.8.4" # Fallback to a known stable version if tag retrieval fails
         fi
@@ -454,9 +747,40 @@ jobs:
           build-wasm/pvz-portable.js
           build-wasm/pvz-portable.wasm
 
+    # Staged only when a deployment will actually happen (tag push or manual run)
+    - name: Prepare GitHub Pages Artifact
+      if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      run: |
+        mkdir -p pages
+        cp build-wasm/pvz-portable.html build-wasm/pvz-portable.js build-wasm/pvz-portable.wasm pages/
+        # Land /PvZ-Portable/ on the game page directly
+        printf '<!doctype html><meta http-equiv="refresh" content="0; url=pvz-portable.html">\n' > pages/index.html
+
+    - name: Upload GitHub Pages Artifact
+      if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      uses: actions/upload-pages-artifact@v5
+      with:
+        path: pages/
+
+  deploy-wasm-pages:
+    name: Deploy WebAssembly to GitHub Pages
+    needs: ['build-archlinux', 'build-linux-static', 'build-windows-msys2-ucrt64', 'build-windows-msvc-x64', 'build-windows-msvc-x86', 'build-macos', 'build-android', 'build-ios', 'build-wasm']
+    # Auto-deploy on release tags; manual runs allowed via workflow_dispatch (main only)
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v5
+
   release:
     name: Release
-    needs: ['build-archlinux', 'build-windows-msys2-ucrt64', 'build-windows-msvc-x64', 'build-macos', 'build-android', 'build-ios', 'build-wasm']
+    needs: ['build-archlinux', 'build-linux-static', 'build-windows-msys2-ucrt64', 'build-windows-msvc-x64', 'build-windows-msvc-x86', 'build-macos', 'build-android', 'build-ios', 'build-wasm']
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
@@ -475,8 +799,15 @@ jobs:
         chmod +x artifacts/pvz-portable-archlinux/pvz-portable
         mv artifacts/pvz-portable-archlinux/pvz-portable release_files/pvz-portable-archlinux-x86_64
 
-        echo "Preparing Windows MSVC file..."
+        echo "Preparing Linux static file..."
+        chmod +x artifacts/pvz-portable-linux-static/pvz-portable
+        mv artifacts/pvz-portable-linux-static/pvz-portable release_files/pvz-portable-linux-static-x86_64
+
+        echo "Preparing Windows MSVC x64 file..."
         mv artifacts/pvz-portable-windows-msvc-x64/pvz-portable.exe release_files/pvz-portable-windows-msvc-x64-static.exe
+
+        echo "Preparing Windows MSVC x86 file..."
+        mv artifacts/pvz-portable-windows-msvc-x86/pvz-portable.exe release_files/pvz-portable-windows-msvc-x86-static.exe
 
         echo "Preparing Windows MSYS2 file..."
         mv artifacts/pvz-portable-windows-msys2-ucrt64/pvz-portable.exe release_files/pvz-portable-windows-ucrt64-static.exe

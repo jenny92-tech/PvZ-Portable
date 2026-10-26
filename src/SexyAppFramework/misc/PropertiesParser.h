@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -27,6 +27,7 @@
 #define __PROPERTIESPARSER_H__
 
 #include "SexyAppBase.h"
+#include <memory>
 
 namespace Sexy
 {
@@ -37,7 +38,7 @@ class PropertiesParser
 {
 public:
 	SexyAppBase*			mApp;
-	XMLParser*				mXMLParser;
+	std::unique_ptr<XMLParser>	mXMLParser;
 	std::string				mError;
 	bool					mHasFailed;
 

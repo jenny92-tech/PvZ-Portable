@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -26,6 +26,8 @@
 #define __SDLSOUNDMANAGER_H__
 
 #include "SoundManager.h"
+#include <memory>
+#include <atomic>
 #include <SDL.h>
 #include <SDL_mixer_ext/SDL_mixer_ext.h>
 
@@ -40,11 +42,11 @@ class SDLSoundManager : public SoundManager
 
 protected:
 	bool					mInitializedMixer;
-	Mix_Chunk*				mSourceSounds[MAX_SOURCE_SOUNDS];
+	std::atomic<Mix_Chunk*>		mSourceSounds[MAX_SOURCE_SOUNDS];
 	std::string				mSourceFileNames[MAX_SOURCE_SOUNDS];
 	double					mBaseVolumes[MAX_SOURCE_SOUNDS];
 	int						mBasePans[MAX_SOURCE_SOUNDS];
-	SDLSoundInstance*		mPlayingSounds[MAX_CHANNELS];
+	std::unique_ptr<SDLSoundInstance>	mPlayingSounds[MAX_CHANNELS];
 	double					mMasterVolume;
 	uint64_t				mLastReleaseTick;
 	int						mMixerFreq;
@@ -54,6 +56,7 @@ protected:
 protected:
 	int						FindFreeChannel();
 	bool					LoadAUSound(intptr_t theSfxID, const std::string& theFilename);
+	bool					DecodeSound(intptr_t theSfxID, const std::string& theFilename);
 	void					ReleaseFreeChannels();
 
 public:

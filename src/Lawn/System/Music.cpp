@@ -24,26 +24,30 @@
 #include "PlayerInfo.h"
 #include "../../LawnApp.h"
 #include "paklib/PakInterface.h"
-#include "../../Sexy.TodLib/TodDebug.h"
-#include "../../Sexy.TodLib/TodCommon.h"
+#include "../../PvzpLib/PvzpDebug.h"
+#include "../../PvzpLib/PvzpCommon.h"
 #include "sound/SDLMusicInterface.h"
+
+#include <mutex>
 
 using namespace Sexy;
 
 Music::Music()
 {
 	mApp = (LawnApp*)gSexyAppBase;
-	mMusicInterface = gSexyAppBase->mMusicInterface;
+	mMusicInterface = gSexyAppBase->mMusicInterface.get();
 	mCurMusicTune = MusicTune::MUSIC_TUNE_NONE;
 	mCurMusicFileMain = MusicFile::MUSIC_FILE_NONE;
 	mCurMusicFileDrums = MusicFile::MUSIC_FILE_NONE;
 	mCurMusicFileHihats = MusicFile::MUSIC_FILE_NONE;
 	mBurstOverride = -1;
 	mMusicDrumsState = MusicDrumsState::MUSIC_DRUMS_OFF;
+	mDrumsStateCounter = 0;
 	mQueuedDrumTrackPackedOrder = -1;
 	mBaseBPM = 155;
 	mBaseModSpeed = 3;
 	mMusicBurstState = MusicBurstState::MUSIC_BURST_OFF;
+	mBurstStateCounter = 0;
 	mPauseOffset = 0;
 	mPauseOffsetDrums = 0;
 	mPaused = false;
@@ -68,10 +72,10 @@ static constexpr MusicLoadEntry MUSIC_LOADING_FILES[] = {
 
 const int Music::MUSIC_LOADING_TASKS = MUSIC_LOADING_TASK_WEIGHT * static_cast<int>(sizeof(MUSIC_LOADING_FILES) / sizeof(MUSIC_LOADING_FILES[0]));
 
-bool Music::TodLoadMusic(MusicFile theMusicFile, std::string_view theFileName)
+bool Music::PvzpLoadMusic(MusicFile theMusicFile, std::string_view theFileName)
 {
 	Mix_Music* aHMusic = 0;
-	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface;
+	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface.get();
 	std::string aFileName(theFileName);
 	std::string anExt;
 
@@ -87,7 +91,7 @@ bool Music::TodLoadMusic(MusicFile theMusicFile, std::string_view theFileName)
 	int aSize = p_ftell(pFile);
 	p_fseek(pFile, 0, SEEK_SET);
 	void* aData = operator new[](aSize);
-	p_fread(aData, sizeof(char), aSize, pFile);
+	p_fread(aData, sizeof(uint8_t), aSize, pFile);
 	p_fclose(pFile);
 
 	aHMusic = Mix_LoadMUS_RW(SDL_RWFromMem(aData, aSize), 1);
@@ -105,6 +109,8 @@ bool Music::TodLoadMusic(MusicFile theMusicFile, std::string_view theFileName)
 
 	SDLMusicInfo aMusicInfo;
 	aMusicInfo.mHMusic = aHMusic;
+
+	std::scoped_lock anAutoCrit(anSDL->mMusicMapMutex);
 	anSDL->mMusicMap.insert(SDLMusicMap::value_type(theMusicFile, aMusicInfo));
 	return true;
 }
@@ -152,7 +158,7 @@ void Music::SetupVolumeForTune(MusicTune theMusicTune, float theDrumsVolume, flo
 		{
 			bool isDrums = (aTrack >= aDrumsStart && aTrack <= aDrumsEnd);
 			bool isHihats = (aTrack >= aHihatsStart1 && aTrack <= aHihatsEnd1) ||
-			                (aTrack >= aHihatsStart2 && aTrack <= aHihatsEnd2);
+							(aTrack >= aHihatsStart2 && aTrack <= aHihatsEnd2);
 			if (isDrums && isHihats)
 				aVolume = std::max(theDrumsVolume, theHihatsVolume);
 			else if (isDrums)
@@ -168,15 +174,10 @@ void Music::SetupVolumeForTune(MusicTune theMusicTune, float theDrumsVolume, flo
 
 void Music::LoadSong(MusicFile theMusicFile, std::string_view theFileName)
 {
-	TodHesitationTrace("preloadsong");
-	if (!TodLoadMusic(theMusicFile, theFileName))
+	if (!PvzpLoadMusic(theMusicFile, theFileName))
 	{
-		TodTrace("music failed to load\n");
+		PvzpLogLn("music failed to load");
 		mMusicDisabled = true;
-	}
-	else
-	{
-		TodHesitationTrace("song '%.*s'", static_cast<int>(theFileName.size()), theFileName.data());
 	}
 }
 
@@ -197,7 +198,8 @@ void Music::MusicInit()
 
 void Music::MusicCreditScreenInit()
 {
-	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface;
+	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface.get();
+	std::scoped_lock anAutoCrit(anSDL->mMusicMapMutex);
 	if (anSDL->mMusicMap.find((int)MusicFile::MUSIC_FILE_CREDITS_ZOMBIES_ON_YOUR_LAWN) == anSDL->mMusicMap.end())
 		LoadSong(MusicFile::MUSIC_FILE_CREDITS_ZOMBIES_ON_YOUR_LAWN, "sounds/ZombiesOnYourLawn.ogg");
 }
@@ -227,17 +229,19 @@ void Music::StopAllMusic()
 
 Mix_Music* Music::GetMusicHandle(MusicFile theMusicFile)
 {
-	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface;
+	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface.get();
+	std::scoped_lock anAutoCrit(anSDL->mMusicMapMutex);
 	auto anItr = anSDL->mMusicMap.find((int)theMusicFile);
-	TOD_ASSERT(anItr != anSDL->mMusicMap.end());
+	PVZP_ASSERT(anItr != anSDL->mMusicMap.end());
 	return anItr->second.mHMusic;
 }
 
 void Music::PlayFromOffset(MusicFile theMusicFile, int theOffset, double theVolume)
 {
-	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface;
+	SDLMusicInterface* anSDL = (SDLMusicInterface*)mApp->mMusicInterface.get();
+	std::scoped_lock anAutoCrit(anSDL->mMusicMapMutex);
 	auto anItr = anSDL->mMusicMap.find((int)theMusicFile);
-	TOD_ASSERT(anItr != anSDL->mMusicMap.end());
+	PVZP_ASSERT(anItr != anSDL->mMusicMap.end());
 	SDLMusicInfo* aMusicInfo = &anItr->second;
 
 	if (mCurMusicTune == MusicTune::MUSIC_TUNE_CREDITS_ZOMBIES_ON_YOUR_LAWN)
@@ -267,7 +271,6 @@ void Music::PlayMusic(MusicTune theMusicTune, int theOffset, int theDrumsOffset)
 	mCurMusicFileMain = MusicFile::MUSIC_FILE_NONE;
 	mCurMusicFileDrums = MusicFile::MUSIC_FILE_NONE;
 	mCurMusicFileHihats = MusicFile::MUSIC_FILE_NONE;
-	bool aRestartingSong = theOffset != -1;
 
 	switch (theMusicTune)
 	{
@@ -368,67 +371,28 @@ void Music::PlayMusic(MusicTune theMusicTune, int theOffset, int theDrumsOffset)
 		break;
 
 	default:
-		TOD_ASSERT(false);
+		PVZP_ASSERT(false);
 		break;
-	}
-
-	if (aRestartingSong)
-	{
-		// TODO: Restore BPM/speed for restarting songs when tempo API is implemented
-	}
-	else
-	{
-		// TODO: Read base BPM/speed from newly started song when tempo API is implemented
 	}
 }
 
 unsigned long Music::GetMusicOrder(MusicFile theMusicFile)
 {
-	TOD_ASSERT(theMusicFile != MusicFile::MUSIC_FILE_NONE);
-	return ((SDLMusicInterface*)mApp->mMusicInterface)->GetMusicOrder((int)theMusicFile);
-}
-
-void Music::MusicResyncChannel(MusicFile theMusicFileToMatch, MusicFile theMusicFileToSync)
-{
-	unsigned int aPosToMatch = GetMusicOrder(theMusicFileToMatch);
-	unsigned int aPosToSync = GetMusicOrder(theMusicFileToSync);
-	int aDiff = (aPosToSync >> 16) - (aPosToMatch >> 16);
-	if (abs(aDiff) <= 128)
-	{
-		int aBPM = mBaseBPM;
-		if (aDiff > 2)
-			aBPM -= 2;
-		else if (aDiff > 0)
-			aBPM -= 1;
-		else if (aDiff < -2)
-			aBPM += 2;
-		else if (aDiff < 0)
-			aBPM -= 1;
-
-		// TODO: Apply BPM adjustment when tempo API is implemented
-	}
-}
-
-void Music::MusicResync()
-{
-	if (mCurMusicFileMain != MusicFile::MUSIC_FILE_NONE)
-	{
-		if (mCurMusicFileDrums != MusicFile::MUSIC_FILE_NONE)
-			MusicResyncChannel(mCurMusicFileMain, mCurMusicFileDrums);
-	}
+	PVZP_ASSERT(theMusicFile != MusicFile::MUSIC_FILE_NONE);
+	return ((SDLMusicInterface*)mApp->mMusicInterface.get())->GetMusicOrder((int)theMusicFile);
 }
 
 void Music::StartBurst()
-{ 
+{
 	if (mMusicBurstState == MusicBurstState::MUSIC_BURST_OFF)
-	{ 
+	{
 		mMusicBurstState = MusicBurstState::MUSIC_BURST_STARTING;
 		mBurstStateCounter = 400;
 	}
 }
 
 void Music::FadeOut(int theFadeOutDuration)
-{ 
+{
 	if (mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
 	{
 		mFadeOutCounter = theFadeOutDuration;
@@ -470,7 +434,7 @@ void Music::UpdateMusicBurst()
 		case MusicBurstState::MUSIC_BURST_STARTING:
 			if (aBurstScheme == 1)
 			{
-				aFadeTrackVolume = TodAnimateCurveFloat(400, 0, mBurstStateCounter, 0.0f, 1.0f, TodCurves::CURVE_LINEAR);
+				aFadeTrackVolume = PvzpAnimateCurveFloat(400, 0, mBurstStateCounter, 0.0f, 1.0f, PvzpCurves::CURVE_LINEAR);
 				if (mBurstStateCounter == 100)
 				{
 					mMusicDrumsState = MusicDrumsState::MUSIC_DRUMS_ON_QUEUED;
@@ -494,7 +458,7 @@ void Music::UpdateMusicBurst()
 					mBurstStateCounter = 400;
 				else
 				{
-					aMainTrackVolume = TodAnimateCurveFloat(400, 0, mBurstStateCounter, 1.0f, 0.0f, TodCurves::CURVE_LINEAR);
+					aMainTrackVolume = PvzpAnimateCurveFloat(400, 0, mBurstStateCounter, 1.0f, 0.0f, PvzpCurves::CURVE_LINEAR);
 					if (mBurstStateCounter == 0)
 					{
 						mMusicBurstState = MusicBurstState::MUSIC_BURST_ON;
@@ -527,9 +491,9 @@ void Music::UpdateMusicBurst()
 			break;
 		case MusicBurstState::MUSIC_BURST_FINISHING:
 			if (aBurstScheme == 1)
-				aFadeTrackVolume = TodAnimateCurveFloat(800, 0, mBurstStateCounter, 1.0f, 0.0f, TodCurves::CURVE_LINEAR);
+				aFadeTrackVolume = PvzpAnimateCurveFloat(800, 0, mBurstStateCounter, 1.0f, 0.0f, PvzpCurves::CURVE_LINEAR);
 			else
-				aMainTrackVolume = TodAnimateCurveFloat(400, 0, mBurstStateCounter, 0.0f, 1.0f, TodCurves::CURVE_LINEAR);
+				aMainTrackVolume = PvzpAnimateCurveFloat(400, 0, mBurstStateCounter, 0.0f, 1.0f, PvzpCurves::CURVE_LINEAR);
 			if (mBurstStateCounter == 0 && mMusicDrumsState == MusicDrumsState::MUSIC_DRUMS_OFF)
 				mMusicBurstState = MusicBurstState::MUSIC_BURST_OFF;
 			break;
@@ -572,9 +536,9 @@ void Music::UpdateMusicBurst()
 			break;
 		case MusicDrumsState::MUSIC_DRUMS_FADING:
 			if (aBurstScheme == 2)
-				aDrumsVolume = TodAnimateCurveFloat(800, 0, mDrumsStateCounter, 1.0f, 0.0f, TodCurves::CURVE_LINEAR);
+				aDrumsVolume = PvzpAnimateCurveFloat(800, 0, mDrumsStateCounter, 1.0f, 0.0f, PvzpCurves::CURVE_LINEAR);
 			else
-				aDrumsVolume = TodAnimateCurveFloat(50, 0, mDrumsStateCounter, 1.0f, 0.0f, TodCurves::CURVE_LINEAR);
+				aDrumsVolume = PvzpAnimateCurveFloat(50, 0, mDrumsStateCounter, 1.0f, 0.0f, PvzpCurves::CURVE_LINEAR);
 			if (mDrumsStateCounter == 0)
 				mMusicDrumsState = MusicDrumsState::MUSIC_DRUMS_OFF;
 			break;
@@ -604,7 +568,7 @@ void Music::MusicUpdate()
 			StopAllMusic();
 		else
 		{
-			float aFadeLevel = TodAnimateCurveFloat(mFadeOutDuration, 0, mFadeOutCounter, 1.0f, 0.0f, TodCurves::CURVE_LINEAR);
+			float aFadeLevel = PvzpAnimateCurveFloat(mFadeOutDuration, 0, mFadeOutCounter, 1.0f, 0.0f, PvzpCurves::CURVE_LINEAR);
 			mMusicInterface->SetSongVolume(mCurMusicFileMain, aFadeLevel);
 		}
 	}
@@ -612,7 +576,6 @@ void Music::MusicUpdate()
 	if (mApp->mBoard == nullptr || !mApp->mBoard->mPaused)
 	{
 		UpdateMusicBurst();
-		MusicResync();
 	}
 }
 
@@ -627,7 +590,7 @@ void Music::MakeSureMusicIsPlaying(MusicTune theMusicTune)
 
 void Music::StartGameMusic()
 {
-	TOD_ASSERT(mApp->mBoard);
+	PVZP_ASSERT(mApp->mBoard);
 
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || mApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
 		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_ZEN_GARDEN);

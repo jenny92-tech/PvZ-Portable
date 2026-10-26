@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -27,10 +27,6 @@
 #include "Common.h"
 #include "PakInterface.h"
 #include "fcaseopen/fcaseopen.h"
-
-typedef unsigned char uchar;
-typedef unsigned short ushort;
-typedef unsigned long ulong;
 
 enum
 {
@@ -60,7 +56,7 @@ std::string PakInterface::NormalizePakPath(std::string_view theFileName)
 		{
 			std::filesystem::path aResPath = Sexy::PathFromU8(aResourceFolder);
 			auto [aResEnd, aFileIt] = std::mismatch(aResPath.begin(), aResPath.end(),
-			                                       aFilePath.begin(), aFilePath.end());
+												   aFilePath.begin(), aFilePath.end());
 			if (aResEnd == aResPath.end())
 			{
 				std::filesystem::path aRelativePath;
@@ -75,10 +71,10 @@ std::string PakInterface::NormalizePakPath(std::string_view theFileName)
 
 	if (aResult.size() >= 2 && aResult[0] == '.' && aResult[1] == '/')
 		aResult = aResult.substr(2);
-	
+
 	std::transform(aResult.begin(), aResult.end(), aResult.begin(),
-	               [](unsigned char c) { return std::toupper(c); });
-	
+				   [](uint8_t c) { return std::toupper(c); });
+
 	return aResult;
 }
 
@@ -92,23 +88,33 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 	size_t aFileSize = ftell(aFileHandle);
 	fseek(aFileHandle, 0, SEEK_SET);
 
-	mPakCollectionList.emplace_back(aFileSize);
+#ifdef LOW_MEMORY
+	mPakCollectionList.emplace_back(aFileHandle);
+#else
+	mPakCollectionList.emplace_back();
+#endif
 	PakCollection* aPakCollection = &mPakCollectionList.back();
 
-	if (fread(aPakCollection->mDataPtr, 1, aFileSize, aFileHandle) != aFileSize)
+#ifndef LOW_MEMORY
+	aPakCollection->mSize = aFileSize;
+	// Prefer mapping to a heap copy. LOW_MEMORY keeps upstream's buffered I/O.
+	if (!aPakCollection->mMap.MapFile(aFileHandle, aFileSize))
 	{
-		fclose(aFileHandle);
-		return false;
+		aPakCollection->mOwnedData = malloc(aFileSize);
+		if (aPakCollection->mOwnedData == nullptr ||
+			fread(aPakCollection->mOwnedData, 1, aFileSize, aFileHandle) != aFileSize)
+		{
+			mPakCollectionList.pop_back();
+			fclose(aFileHandle);
+			return false;
+		}
 	}
 	fclose(aFileHandle);
-
-	auto *aDataPtr = static_cast<uint8_t *>(aPakCollection->mDataPtr);
-	for (size_t i = 0; i < aFileSize; i++)
-		*aDataPtr++ ^= 0xF7;
+#endif
 
 	std::string aPakKey = NormalizePakPath(theFileName);
-	auto aRecordItr = mPakRecordMap.emplace(aPakKey, PakRecord()).first;
-	PakRecord* aPakRecord = &aRecordItr->second;
+	auto aEmplaceResult = mPakRecordMap.emplace(aPakKey, PakRecord());
+	PakRecord* aPakRecord = &aEmplaceResult.first->second;
 	aPakRecord->mCollection = aPakCollection;
 	aPakRecord->mFileName = aPakKey;
 	aPakRecord->mStartPos = 0;
@@ -116,7 +122,16 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 
 	PFILE* aFP = FOpen(theFileName.c_str(), "rb");
 	if (aFP == nullptr)
+	{
+#ifdef LOW_MEMORY
+		if (aEmplaceResult.second)
+		{
+			mPakRecordMap.erase(aPakKey);
+			mPakCollectionList.pop_back();
+		}
+#endif
 		return false;
+	}
 
 	uint32_t aMagic = 0;
 	FRead(&aMagic, sizeof(uint32_t), 1, aFP);
@@ -124,6 +139,13 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 	if (aMagic != 0xBAC04AC0)
 	{
 		FClose(aFP);
+#ifdef LOW_MEMORY
+		if (aEmplaceResult.second)
+		{
+			mPakRecordMap.erase(aPakKey);
+			mPakCollectionList.pop_back();
+		}
+#endif
 		return false;
 	}
 
@@ -133,23 +155,30 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 	if (aVersion > 0)
 	{
 		FClose(aFP);
+#ifdef LOW_MEMORY
+		if (aEmplaceResult.second)
+		{
+			mPakRecordMap.erase(aPakKey);
+			mPakCollectionList.pop_back();
+		}
+#endif
 		return false;
 	}
 
 	int aPos = 0;
 	for (;;)
 	{
-		uchar aFlags = 0;
+		uint8_t aFlags = 0;
 		int aCount = FRead(&aFlags, 1, 1, aFP);
 		if ((aFlags & FILEFLAGS_END) || (aCount == 0))
 			break;
 
-		uchar aNameWidth = 0;
+		uint8_t aNameWidth = 0;
 		char aName[256];
 		FRead(&aNameWidth, 1, 1, aFP);
 		FRead(aName, 1, aNameWidth, aFP);
 		aName[aNameWidth] = 0;
-		
+
 		int aSrcSize = 0;
 		FRead(&aSrcSize, sizeof(int), 1, aFP);
 		aSrcSize = static_cast<int>(Sexy::FromLE32(static_cast<uint32_t>(aSrcSize)));
@@ -199,6 +228,10 @@ PFILE* PakInterface::FOpen(const char* theFileName, const char* anAccess)
 			aPFP->mRecord = &anItr->second;
 			aPFP->mPos = 0;
 			aPFP->mFP = nullptr;
+#ifdef LOW_MEMORY
+			aPFP->mBufferStart = 0;
+			aPFP->mBufferLen = 0;
+#endif
 			return aPFP;
 		}
 	}
@@ -221,6 +254,10 @@ PFILE* PakInterface::FOpen(const char* theFileName, const char* anAccess)
 	aPFP->mRecord = nullptr;
 	aPFP->mPos = 0;
 	aPFP->mFP = aFP;
+#ifdef LOW_MEMORY
+	aPFP->mBufferStart = 0;
+	aPFP->mBufferLen = 0;
+#endif
 	return aPFP;
 }
 
@@ -243,8 +280,10 @@ int PakInterface::FSeek(PFILE* theFile, long theOffset, int theOrigin)
 		else if (theOrigin == SEEK_CUR)
 			theFile->mPos += theOffset;
 
-		// 当前指针位置不能超过整个文件的大小，且不能小于 0
 		theFile->mPos = std::clamp(theFile->mPos, 0, theFile->mRecord->mSize);
+#ifdef LOW_MEMORY
+		theFile->mBufferLen = 0;
+#endif
 		return 0;
 	}
 	else
@@ -256,25 +295,61 @@ int PakInterface::FTell(PFILE* theFile)
 	if (theFile->mRecord != nullptr)
 		return theFile->mPos;
 	else
-		return ftell(theFile->mFP);	
+		return ftell(theFile->mFP);
+}
+
+static size_t ReadRecordBytes(PFILE* theFile, void* thePtr, int theSize)
+{
+#ifdef LOW_MEMORY
+	if (theSize >= PFILE::BUFFER_SIZE)
+	{
+		int aSizeBytes = std::min(theSize, theFile->mRecord->mSize - theFile->mPos);
+		size_t aRead = theFile->mRecord->mCollection->ReadAt(thePtr, theFile->mRecord->mStartPos + theFile->mPos, aSizeBytes);
+		theFile->mPos += (int) aRead;
+		theFile->mBufferLen = 0;
+		return aRead;
+	}
+
+	auto* aDest = static_cast<uint8_t*>(thePtr);
+	size_t aDone = 0;
+	while (aDone < static_cast<size_t>(theSize))
+	{
+		int aBufOffset = theFile->mPos - theFile->mBufferStart;
+		if (aBufOffset < 0 || aBufOffset >= theFile->mBufferLen)
+		{
+			int aFill = std::min(theFile->mRecord->mSize - theFile->mPos, PFILE::BUFFER_SIZE);
+			if (aFill <= 0)
+				break;
+			theFile->mBufferStart = theFile->mPos;
+			theFile->mBufferLen = (int) theFile->mRecord->mCollection->ReadAt(theFile->mBuffer.data(), theFile->mRecord->mStartPos + theFile->mPos, aFill);
+			if (theFile->mBufferLen == 0)
+				break;
+			aBufOffset = 0;
+		}
+		int aChunk = std::min(theFile->mBufferLen - aBufOffset, (int) (theSize - aDone));
+		memcpy(aDest + aDone, theFile->mBuffer.data() + aBufOffset, aChunk);
+		theFile->mPos += aChunk;
+		aDone += aChunk;
+	}
+	return aDone;
+#else
+	int aSizeBytes = std::min(theSize, theFile->mRecord->mSize - theFile->mPos);
+
+	const uint8_t* src = theFile->mRecord->mCollection->DataPtr() + theFile->mRecord->mStartPos + theFile->mPos;
+	auto* dest = static_cast<uint8_t*>(thePtr);
+	for (int i = 0; i < aSizeBytes; i++)
+		dest[i] = src[i] ^ 0xF7;
+	theFile->mPos += aSizeBytes;
+	return aSizeBytes;
+#endif
 }
 
 size_t PakInterface::FRead(void* thePtr, int theElemSize, int theCount, PFILE* theFile)
 {
 	if (theFile->mRecord != nullptr)
-	{
-		// 实际读取的字节数不能超过当前资源文件剩余可读取的字节数
-		int aSizeBytes = std::min(theElemSize*theCount, theFile->mRecord->mSize - theFile->mPos);
+		return ReadRecordBytes(theFile, thePtr, theElemSize*theCount) / theElemSize;
 
-		// 取得在整个 pak 中开始读取的位置的指针
-		uchar* src = (uchar*) theFile->mRecord->mCollection->mDataPtr + theFile->mRecord->mStartPos + theFile->mPos;
-		uchar* dest = (uchar*) thePtr;
-		memcpy(dest, src, aSizeBytes);
-		theFile->mPos += aSizeBytes;  // 读取完成后，移动当前读取位置的指针
-		return aSizeBytes / theElemSize;  // 返回实际读取的项数
-	}
-	
-	return fread(thePtr, theElemSize, theCount, theFile->mFP);	
+	return fread(thePtr, theElemSize, theCount, theFile->mFP);
 }
 
 int PakInterface::FGetC(PFILE* theFile)
@@ -284,10 +359,12 @@ int PakInterface::FGetC(PFILE* theFile)
 		for (;;)
 		{
 			if (theFile->mPos >= theFile->mRecord->mSize)
-				return EOF;		
-			char aChar = *((char*) theFile->mRecord->mCollection->mDataPtr + theFile->mRecord->mStartPos + theFile->mPos++);
+				return EOF;
+			uint8_t aChar;
+			if (ReadRecordBytes(theFile, &aChar, 1) == 0)
+				return EOF;
 			if (aChar != '\r')
-				return (uchar) aChar;
+				return (uint8_t) aChar;
 		}
 	}
 
@@ -311,7 +388,7 @@ char* PakInterface::FGetS(char* thePtr, int theSize, PFILE* theFile)
 	if (theFile->mRecord != nullptr)
 	{
 		int anIdx = 0;
-		while (anIdx < theSize)
+		while (anIdx < theSize - 1) // fgets semantics: at most theSize-1 chars plus the NUL
 		{
 			if (theFile->mPos >= theFile->mRecord->mSize)
 			{
@@ -319,7 +396,9 @@ char* PakInterface::FGetS(char* thePtr, int theSize, PFILE* theFile)
 					return nullptr;
 				break;
 			}
-			char aChar = *((char*) theFile->mRecord->mCollection->mDataPtr + theFile->mRecord->mStartPos + theFile->mPos++);
+			char aChar;
+			if (ReadRecordBytes(theFile, &aChar, 1) == 0)
+				break;
 			if (aChar != '\r')
 				thePtr[anIdx++] = aChar;
 			if (aChar == '\n')

@@ -1,0 +1,151 @@
+/*
+ * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
+ *
+ * SPDX-License-Identifier: LGPL-3.0-or-later
+ *
+ * This file is part of PvZ-Portable.
+ *
+ * PvZ-Portable is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
+#include "GameButton.h"
+#include "../LawnCommon.h"
+#include "../../LawnApp.h"
+#include "../../Resources.h"
+#include "ControllerHelpDialog.h"
+#include "ControllerOptionsDialog.h"	// IsLocalizedUI
+#include "../../ConstEnums.h"
+#include "../../PvzpLib/PvzpCommon.h"
+
+using namespace Sexy;
+
+// Only what a player would not already guess: the stick moving a cursor, A
+// planting and START pausing explain themselves, so the card skips them.
+// The pak fonts only carry glyphs the stock game uses, so the Chinese wording
+// is built from characters that appear in the game's own strings -- checked
+// against a localized LawnStrings.txt -- and the buttons stay as letters.
+struct HelpRow { const char* mButton; const char* mActionCN; const char* mActionEN; };
+static const HelpRow kRows[] = {
+	{ "B",      "铲子",        "Shovel"          },
+	{ "X",      "商店 / 锤子", "Store / hammer"  },
+	{ "Y",      "花园",        "Zen Garden"      },
+	{ "L1  R1", "选择卡片",    "Seed packets"    },
+	{ "L3",     "光标加速",    "Cursor sprint"   },
+	{ "R2",     "游戏加速",    "Game 2x"         },
+	{ "L2",     "游戏减速",    "Game slow"       },
+};
+
+ControllerHelpDialog::ControllerHelpDialog(LawnApp* theApp, bool theOfferSettings) :
+	Dialog(nullptr, nullptr, Dialogs::DIALOG_CONTROLLER_HELP, true, "Controls", "", "", Dialog::BUTTONS_NONE)
+{
+	mApp = theApp;
+	SetButtonTextColor(Color(255, 255, 100));
+
+	mSettingsButton = MakeButton(ControllerHelpDialog::ControllerHelpDialog_Settings, this,
+		IsLocalizedUI(theApp) ? "移植设置" : "Port Options");
+	mSettingsButton->SetVisible(theOfferSettings);
+
+
+	mBackButton = MakeNewButton(
+		Dialog::ID_OK,
+		this,
+		"[DIALOG_BUTTON_OK]",
+		nullptr,
+		IMAGE_OPTIONS_BACKTOGAMEBUTTON0,
+		IMAGE_OPTIONS_BACKTOGAMEBUTTON0,
+		IMAGE_OPTIONS_BACKTOGAMEBUTTON2
+	);
+	mBackButton->mTextOffsetX = -2;
+	mBackButton->mTextOffsetY = -5;
+	mBackButton->mTextDownOffsetX = 0;
+	mBackButton->mTextDownOffsetY = 1;
+	mBackButton->SetFont(FONT_DWARVENTODCRAFT36GREENINSET);
+	mBackButton->SetLabelColor(Color::White);
+	mBackButton->SetLabelHiliteColor(Color::White);
+	mBackButton->mHiliteFont = FONT_DWARVENTODCRAFT36BRIGHTGREENINSET;
+}
+
+ControllerHelpDialog::~ControllerHelpDialog() = default;
+
+int ControllerHelpDialog::GetPreferredHeight(int theWidth)
+{
+	(void)theWidth;
+	return IMAGE_OPTIONS_MENUBACK->mWidth;
+}
+
+void ControllerHelpDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
+{
+	Dialog::AddedToManager(theWidgetManager);
+	AddWidget(mSettingsButton.get());
+	AddWidget(mBackButton.get());
+}
+
+void ControllerHelpDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
+{
+	Dialog::RemovedFromManager(theWidgetManager);
+	RemoveWidget(mSettingsButton.get());
+	RemoveWidget(mBackButton.get());
+}
+
+void ControllerHelpDialog::Resize(int theX, int theY, int theWidth, int theHeight)
+{
+	Dialog::Resize(theX, theY, theWidth, theHeight);
+	// The rows end at 310, so the button sits clear of them and of the OK button.
+	// Adding a row means re-checking that -- the button hides whatever it covers,
+	// and only the startup card shows the button, so a clash is easy to miss.
+	mSettingsButton->Resize(107, 316, 209, 46);
+	mBackButton->Resize(30, 381, mBackButton->mWidth, mBackButton->mHeight);
+}
+
+void ControllerHelpDialog::Draw(Sexy::Graphics* g)
+{
+	g->DrawImage(IMAGE_OPTIONS_MENUBACK, 0, 0);
+
+	Sexy::Color aButtonColor(70, 74, 110);
+	Sexy::Color aTextColor(107, 109, 145);
+
+	bool aCN = IsLocalizedUI(mApp);
+	int aY = 112;
+	for (const auto& aRow : kRows)
+	{
+		PvzpDrawString(g, aRow.mButton, 175, aY, FONT_DWARVENTODCRAFT18, aButtonColor,
+					   DrawStringJustification::DS_ALIGN_RIGHT);
+		PvzpDrawString(g, aCN ? aRow.mActionCN : aRow.mActionEN, 190, aY,
+					   FONT_DWARVENTODCRAFT18, aTextColor,
+					   DrawStringJustification::DS_ALIGN_LEFT);
+		aY += 24;
+	}
+}
+
+void ControllerHelpDialog::KeyDown(Sexy::KeyCode theKey)
+{
+	if (theKey == KeyCode::KEYCODE_SPACE || theKey == KeyCode::KEYCODE_RETURN ||
+		theKey == KeyCode::KEYCODE_ESCAPE)
+	{
+		Dialog::ButtonDepress(Dialog::ID_OK);
+	}
+}
+
+void ControllerHelpDialog::ButtonPress(int theId)
+{
+	(void)theId;
+	mApp->PlaySample(SOUND_GRAVEBUTTON);
+}
+
+void ControllerHelpDialog::ButtonDepress(int theId)
+{
+	if (theId == ControllerHelpDialog::ControllerHelpDialog_Settings)
+	{
+		// Close this card first, so the settings do not stack on top of it.
+		Dialog::ButtonDepress(Dialog::ID_OK);
+		mApp->mWantControllerSettings = true;
+		return;
+	}
+
+	Dialog::ButtonDepress(theId);
+	if (theId == Dialog::ID_OK)
+		mApp->WriteToRegistry();	// remember that the controls have been shown
+}

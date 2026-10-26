@@ -453,3 +453,13 @@ build-*/
 .kimi-code/
 # Kimi CLI (legacy)
 .kimi/
+
+# Game recordings
+*.dmo
+
+# Local packaging output (Docker build staging)
+/dist/
+/dist-ctl/
+/dist-pm/
+/dist-gconv/
+/pvz_portable*.zip

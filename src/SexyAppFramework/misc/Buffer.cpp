@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -25,13 +25,15 @@
 #include "Buffer.h"
 #include <SDL_stdinc.h>
 #include <array>
-#define POLYNOMIAL 0x04c11db7L
+#include <bit>
+#include <format>
+constexpr const long POLYNOMIAL = 0x04c11db7L;
 
 using namespace Sexy;
 
 static constexpr char WEB_ENCODE_MAP[] = ".-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-static constexpr int WEB_DECODE_MAP[256] = 
+static constexpr int WEB_DECODE_MAP[256] =
 {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 -1, -1, -1, 0, -1, 1, 0, -1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1, -1, -1, -1, -1
@@ -54,9 +56,7 @@ static constexpr char32_t WIN1252_TO_UNICODE[32] = {
 	0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178
 };
 
-//----------------------------------------------------------------------------
 // Generate the table of CRC remainders for all possible bytes.
-//----------------------------------------------------------------------------
 static constexpr std::array<uint32_t, 256> GenerateCRCTable()
 {
 	std::array<uint32_t, 256> table{};
@@ -77,11 +77,9 @@ static constexpr std::array<uint32_t, 256> GenerateCRCTable()
 
 static constexpr std::array<uint32_t, 256> crc_table = GenerateCRCTable();
 
-//----------------------------------------------------------------------------
 // Update the CRC on the data block one byte at a time.
-//----------------------------------------------------------------------------
 static uint32_t UpdateCRC(uint32_t crc_accum,
-						const char *data_blk_ptr,
+						const uint8_t *data_blk_ptr,
 						int data_blk_size)
 {
 	int i, j;
@@ -97,7 +95,7 @@ Buffer::Buffer()
 {
 	mDataBitSize = 0;
 	mReadBitPos = 0;
-	mWriteBitPos = 0;	
+	mWriteBitPos = 0;
 }
 
 Buffer::~Buffer()
@@ -108,20 +106,18 @@ std::string Buffer::ToWebString() const
 {
 	std::string aString;
 	int aSizeBits = mWriteBitPos;
-	
+
 	int anOldReadBitPos = mReadBitPos;
 	mReadBitPos = 0;
 
-	char aStr[256];
-	snprintf(aStr, sizeof(aStr), "%08X", aSizeBits);
-	aString += aStr;
+	aString += std::format("{:08X}", static_cast<unsigned int>(aSizeBits));
 
 	int aNumChars = (aSizeBits + 5) / 6;
 	for (int aCharNum = 0; aCharNum < aNumChars; aCharNum++)
 		aString += WEB_ENCODE_MAP[ReadNumBits(6, false)];
-	
+
 	mReadBitPos = anOldReadBitPos;
-	
+
 	return aString;
 }
 
@@ -222,7 +218,7 @@ void Buffer::FromWebString(std::string_view theString)
 
 	if (theString.size() < 4)
 		return;
-	
+
 	int aSizeBits = 0;
 
 	for (int aDigitNum = 0; aDigitNum < 8; aDigitNum++)
@@ -235,7 +231,7 @@ void Buffer::FromWebString(std::string_view theString)
 		else if ((aChar >= 'A') && (aChar <= 'F'))
 			aVal = (aChar - 'A') + 10;
 		else if ((aChar >= 'a') && (aChar <= 'f'))
-			aVal = (aChar - 'f') + 10;
+			aVal = (aChar - 'a') + 10;
 
 		aSizeBits += (aVal << ((7 - aDigitNum) * 4));
 	}
@@ -244,11 +240,11 @@ void Buffer::FromWebString(std::string_view theString)
 	int aNumBitsLeft = aSizeBits;
 	while (aNumBitsLeft > 0)
 	{
-		uchar aChar = theString[aCharIdx++];
+		uint8_t aChar = theString[aCharIdx++];
 		int aVal = WEB_DECODE_MAP[aChar];
 		int aNumBits = std::min(aNumBitsLeft, 6);
 		WriteNumBits(aVal, aNumBits);
-		aNumBitsLeft -= aNumBits;		
+		aNumBitsLeft -= aNumBits;
 	}
 
 	SeekFront();
@@ -256,7 +252,7 @@ void Buffer::FromWebString(std::string_view theString)
 
 void Buffer::SeekFront() const
 {
-	mReadBitPos = 0;	
+	mReadBitPos = 0;
 }
 
 void Buffer::Clear()
@@ -267,15 +263,15 @@ void Buffer::Clear()
 	mData.clear();
 }
 
-void Buffer::WriteByte(uchar theByte)
-{	
+void Buffer::WriteByte(uint8_t theByte)
+{
 	if (mWriteBitPos % 8 == 0)
-		mData.push_back((char) theByte);
+		mData.push_back(theByte);
 	else
-	{		
+	{
 		int anOfs = mWriteBitPos  % 8;
 		mData[mWriteBitPos /8] |= theByte << anOfs;
-		mData.push_back((char) (theByte >> (8-anOfs)));		
+		mData.push_back(theByte >> (8-anOfs));
 	}
 
 	mWriteBitPos += 8;
@@ -300,14 +296,14 @@ int Buffer::GetBitsRequired(int theNum, bool isSigned)
 {
 	if (theNum < 0) // two's compliment stuff
 		theNum = -theNum - 1;
-	
+
 	int aNumBits = 0;
 	while (theNum >= 1<<aNumBits)
 		aNumBits++;
-		
+
 	if (isSigned)
 		aNumBits++;
-		
+
 	return aNumBits;
 }
 
@@ -318,16 +314,21 @@ void Buffer::WriteBoolean(bool theBool)
 
 void Buffer::WriteShort(short theShort)
 {
-	WriteByte((uchar)theShort);
-	WriteByte((uchar)(theShort >> 8));
+	WriteByte((uint8_t)theShort);
+	WriteByte((uint8_t)(theShort >> 8));
 }
 
-void Buffer::WriteLong(int32_t theLong)
+void Buffer::WriteUInt32(uint32_t theValue)
 {
-	WriteByte((uchar)theLong);
-	WriteByte((uchar)(theLong >> 8));
-	WriteByte((uchar)(theLong >> 16));
-	WriteByte((uchar)(theLong >> 24));
+	WriteByte(static_cast<uint8_t>(theValue));
+	WriteByte(static_cast<uint8_t>(theValue >> 8));
+	WriteByte(static_cast<uint8_t>(theValue >> 16));
+	WriteByte(static_cast<uint8_t>(theValue >> 24));
+}
+
+void Buffer::WriteInt32(int32_t theValue)
+{
+	WriteUInt32(std::bit_cast<uint32_t>(theValue));
 }
 
 void Buffer::WriteString(const std::string& theString)
@@ -339,17 +340,17 @@ void Buffer::WriteString(const std::string& theString)
 
 void Buffer::WriteLine(const std::string& theString)
 {
-	WriteBytes((const uchar*) (theString + "\r\n").c_str(), (int) theString.length() + 2);
+	WriteBytes((const uint8_t*) (theString + "\r\n").c_str(), (int) theString.length() + 2);
 }
 
 void Buffer::WriteBuffer(const ByteVector& theBuffer)
 {
-	WriteLong((short) theBuffer.size());
-	for (int i = 0; i < (int)theBuffer.size(); i++)
-		WriteByte(theBuffer[i]);
+	WriteUInt32(static_cast<uint32_t>(theBuffer.size()));
+	for (uint8_t aByte : theBuffer)
+		WriteByte(aByte);
 }
 
-void Buffer::WriteBytes(const uchar* theByte, int theCount)
+void Buffer::WriteBytes(const uint8_t* theByte, int theCount)
 {
 	for (int i = 0; i < theCount; i++)
 		WriteByte(theByte[i]);
@@ -361,43 +362,43 @@ void Buffer::SetData(const ByteVector& theBuffer)
 	mDataBitSize = mData.size() * 8;
 }
 
-void Buffer::SetData(uchar* thePtr, int theCount)
+void Buffer::SetData(uint8_t* thePtr, int theCount)
 {
 	mData.clear();
 	mData.insert(mData.begin(), thePtr, thePtr + theCount);
 	mDataBitSize = mData.size() * 8;
 }
 
-uchar Buffer::ReadByte() const
+uint8_t Buffer::ReadByte() const
 {
 	if ((mReadBitPos + 7)/8 >= (int)mData.size())
-	{		
+	{
 		return 0; // Underflow
 	}
 
 	if (mReadBitPos % 8 == 0)
 	{
-		uchar b = mData[mReadBitPos/8];
+		uint8_t b = mData[mReadBitPos/8];
 		mReadBitPos += 8;
 		return b;
 	}
 	else
 	{
 		int anOfs = mReadBitPos % 8;
-			
-		uchar b = 0;
-		
+
+		uint8_t b = 0;
+
 		b = mData[mReadBitPos/8] >> anOfs;
 		b |= mData[(mReadBitPos/8)+1] << (8 - anOfs);
-		
-		mReadBitPos += 8;		
-		
+
+		mReadBitPos += 8;
+
 		return b;
 	}
 }
 
 int Buffer::ReadNumBits(int theBits, bool isSigned) const
-{	
+{
 	int aByteLength = (int) mData.size();
 
 	int theNum = 0;
@@ -409,16 +410,16 @@ int Buffer::ReadNumBits(int theBits, bool isSigned) const
 		if (aBytePos >= aByteLength)
 			break;
 
-		if ((bset = (mData[aBytePos] & (1<<(mReadBitPos%8))) != 0))	
+		if ((bset = (mData[aBytePos] & (1<<(mReadBitPos%8))) != 0))
 			theNum |= 1<<aBitNum;
-		
+
 		mReadBitPos++;
 	}
-	
+
 	if ((isSigned) && (bset)) // sign extend
 		for (int aBitNum = theBits; aBitNum < 32; aBitNum++)
 			theNum |= 1<<aBitNum;
-	
+
 	return theNum;
 }
 
@@ -431,17 +432,22 @@ short Buffer::ReadShort() const
 {
 	short aShort = ReadByte();
 	aShort |= ((short) ReadByte() << 8);
-	return aShort;	
+	return aShort;
 }
 
-int32_t Buffer::ReadLong() const
+uint32_t Buffer::ReadUInt32() const
 {
-	int32_t aLong = ReadByte();
-	aLong |= ((int32_t) ReadByte()) << 8;
-	aLong |= ((int32_t) ReadByte()) << 16;
-	aLong |= ((int32_t) ReadByte()) << 24;
+	uint32_t aValue = ReadByte();
+	aValue |= static_cast<uint32_t>(ReadByte()) << 8;
+	aValue |= static_cast<uint32_t>(ReadByte()) << 16;
+	aValue |= static_cast<uint32_t>(ReadByte()) << 24;
 
-	return aLong;
+	return aValue;
+}
+
+int32_t Buffer::ReadInt32() const
+{
+	return std::bit_cast<int32_t>(ReadUInt32());
 }
 
 std::string	Buffer::ReadString() const
@@ -473,7 +479,7 @@ std::string Buffer::ReadLine() const
 	return aString;
 }
 
-void Buffer::ReadBytes(uchar* theData, int theLen) const
+void Buffer::ReadBytes(uint8_t* theData, int theLen) const
 {
 	for (int i = 0; i < theLen; i++)
 		theData[i] = ReadByte();
@@ -482,13 +488,13 @@ void Buffer::ReadBytes(uchar* theData, int theLen) const
 void Buffer::ReadBuffer(ByteVector* theByteVector) const
 {
 	theByteVector->clear();
-	
-	uint32_t aLength = ReadLong();
+
+	uint32_t aLength = ReadUInt32();
 	theByteVector->resize(aLength);
-	ReadBytes(&(*theByteVector)[0], aLength);
+	ReadBytes(theByteVector->data(), static_cast<int>(aLength));
 }
 
-const uchar* Buffer::GetDataPtr() const
+const uint8_t* Buffer::GetDataPtr() const
 {
 	if (mData.size() == 0)
 		return nullptr;
@@ -506,14 +512,14 @@ int Buffer::GetDataLenBits() const
 }
 
 uint32_t Buffer::GetCRC32(uint32_t theSeed) const
-{	
+{
 	uint32_t aCRC = theSeed;
-	aCRC = UpdateCRC(aCRC, (const char*) &mData[0], (int) mData.size());	
+	aCRC = UpdateCRC(aCRC, mData.data(), static_cast<int>(mData.size()));
 	return aCRC;
 }
 
 bool Buffer::AtEnd() const
-{ 
+{
 	//return mReadBitPos >= (int)mData.size()*8;
 	return mReadBitPos >= mDataBitSize;
 }

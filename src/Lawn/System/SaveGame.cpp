@@ -29,22 +29,23 @@
 #include "../../Resources.h"
 #include "../../ConstEnums.h"
 #include "../MessageWidget.h"
-#include "../../Sexy.TodLib/Trail.h"
+#include "../../PvzpLib/Trail.h"
 #include "zlib.h"
-#include "../../Sexy.TodLib/Attachment.h"
-#include "../../Sexy.TodLib/Reanimator.h"
-#include "../../Sexy.TodLib/TodParticle.h"
-#include "../../Sexy.TodLib/EffectSystem.h"
-#include "../../Sexy.TodLib/DataArray.h"
-#include "../../Sexy.TodLib/TodList.h"
+#include "../../PvzpLib/Attachment.h"
+#include "../../PvzpLib/Reanimator.h"
+#include "../../PvzpLib/PvzpParticle.h"
+#include "../../PvzpLib/EffectSystem.h"
+#include "../../PvzpLib/DataArray.h"
+#include "../../PvzpLib/PvzpList.h"
 #include "DataSync.h"
 #include "misc/Buffer.h"
 #include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <type_traits>
 #include <vector>
 
-static constexpr const char* FILE_COMPILE_TIME_STRING = "Jul  2 201011:47:03"; // The compile time of 1.2.0.1073 GOTY
-//static constexpr const char* FILE_COMPILE_TIME_STRING = "Dec 10 201014:56:46" // The compile time of 1.2.0.1096 GOTY Steam
+static constexpr const char* FILE_COMPILE_TIME_STRING = "Jul  2 201011:47:03"; // save files are tied to this exact timestamp string
 static constexpr const uint32_t SAVE_FILE_MAGIC_NUMBER = 0xFEEDDEAD;
 static constexpr const uint32_t SAVE_FILE_VERSION = 2U;
 static const uint32_t SAVE_FILE_DATE = crc32(0, (Bytef*)FILE_COMPILE_TIME_STRING, strlen(FILE_COMPILE_TIME_STRING));
@@ -93,23 +94,23 @@ enum SaveChunkTypeV4
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
 
-static void AppendU32LE(std::vector<unsigned char>& theOut, uint32_t theValue)
+static void AppendU32LE(std::vector<uint8_t>& theOut, uint32_t theValue)
 {
-	unsigned char aBytes[4];
-	aBytes[0] = static_cast<unsigned char>(theValue & 0xFF);
-	aBytes[1] = static_cast<unsigned char>((theValue >> 8) & 0xFF);
-	aBytes[2] = static_cast<unsigned char>((theValue >> 16) & 0xFF);
-	aBytes[3] = static_cast<unsigned char>((theValue >> 24) & 0xFF);
+	uint8_t aBytes[4];
+	aBytes[0] = static_cast<uint8_t>(theValue & 0xFF);
+	aBytes[1] = static_cast<uint8_t>((theValue >> 8) & 0xFF);
+	aBytes[2] = static_cast<uint8_t>((theValue >> 16) & 0xFF);
+	aBytes[3] = static_cast<uint8_t>((theValue >> 24) & 0xFF);
 	theOut.insert(theOut.end(), aBytes, aBytes + 4);
 }
 
-static void AppendBytes(std::vector<unsigned char>& theOut, const void* theData, size_t theLen)
+static void AppendBytes(std::vector<uint8_t>& theOut, const void* theData, size_t theLen)
 {
-	const unsigned char* aBytes = reinterpret_cast<const unsigned char*>(theData);
+	const uint8_t* aBytes = reinterpret_cast<const uint8_t*>(theData);
 	theOut.insert(theOut.end(), aBytes, aBytes + theLen);
 }
 
-static void AppendChunk(std::vector<unsigned char>& theOut, uint32_t theChunkType, const std::vector<unsigned char>& theChunkData)
+static void AppendChunk(std::vector<uint8_t>& theOut, uint32_t theChunkType, const std::vector<uint8_t>& theChunkData)
 {
 	AppendU32LE(theOut, theChunkType);
 	AppendU32LE(theOut, static_cast<uint32_t>(theChunkData.size()));
@@ -119,13 +120,13 @@ static void AppendChunk(std::vector<unsigned char>& theOut, uint32_t theChunkTyp
 class TLVReader
 {
 public:
-	const unsigned char* mData;
+	const uint8_t* mData;
 	size_t mSize;
 	size_t mPos;
 	bool mOk;
 
 public:
-	TLVReader(const unsigned char* theData, size_t theSize)
+	TLVReader(const uint8_t* theData, size_t theSize)
 		: mData(theData), mSize(theSize), mPos(0), mOk(true)
 	{
 	}
@@ -146,7 +147,7 @@ public:
 		return true;
 	}
 
-	bool ReadBytes(const unsigned char*& thePtr, size_t theLen)
+	bool ReadBytes(const uint8_t*& thePtr, size_t theLen)
 	{
 		if (mPos + theLen > mSize)
 		{
@@ -320,19 +321,6 @@ public:
 	}
 };
 
-
-template <typename TObject, typename TField>
-static void SyncPodTail(PortableSaveContext& theContext, TObject& theObject, TField TObject::* theFirstField)
-{
-	unsigned char* aStart = reinterpret_cast<unsigned char*>(&theObject);
-	unsigned char* aField = reinterpret_cast<unsigned char*>(&(theObject.*theFirstField));
-	size_t aOffset = static_cast<size_t>(aField - aStart);
-	if (aOffset < sizeof(TObject))
-	{
-		theContext.SyncBytes(aStart + aOffset, static_cast<uint32_t>(sizeof(TObject) - aOffset));
-	}
-}
-
 static void SyncColorPortable(PortableSaveContext& theContext, Color& theColor)
 {
 	theContext.SyncInt32(theColor.mRed);
@@ -404,7 +392,7 @@ static void SyncReanimationDefPortable(PortableSaveContext& theContext, Reanimat
 	}
 }
 
-static void SyncParticleDefPortable(PortableSaveContext& theContext, TodParticleDefinition*& theDefinition)
+static void SyncParticleDefPortable(PortableSaveContext& theContext, PvzpParticleDefinition*& theDefinition)
 {
 	if (theContext.mReading)
 	{
@@ -428,7 +416,7 @@ static void SyncParticleDefPortable(PortableSaveContext& theContext, TodParticle
 		int aParticleType = static_cast<int>(ParticleEffect::PARTICLE_NONE);
 		for (int i = 0; i < static_cast<int>(ParticleEffect::NUM_PARTICLES); i++)
 		{
-			TodParticleDefinition* aDef = &gParticleDefArray[i];
+			PvzpParticleDefinition* aDef = &gParticleDefArray[i];
 			if (theDefinition == aDef)
 			{
 				aParticleType = i;
@@ -504,7 +492,7 @@ static void SyncImagePortable(PortableSaveContext& theContext, Image*& theImage)
 	}
 }
 
-static void SyncDataIDListPortable(TodList<uint32_t>* theDataIDList, PortableSaveContext& theContext, TodAllocator* theAllocator)
+static void SyncDataIDListPortable(PvzpList<uint32_t>* theDataIDList, PortableSaveContext& theContext, PvzpAllocator* theAllocator)
 {
 	try
 	{
@@ -531,7 +519,7 @@ static void SyncDataIDListPortable(TodList<uint32_t>* theDataIDList, PortableSav
 		{
 			int aCount = theDataIDList->mSize;
 			theContext.SyncInt32(aCount);
-			for (TodListNode<uint32_t>* aNode = theDataIDList->mHead; aNode != nullptr; aNode = aNode->mNext)
+			for (PvzpListNode<uint32_t>* aNode = theDataIDList->mHead; aNode != nullptr; aNode = aNode->mNext)
 			{
 				uint32_t aDataID = aNode->mValue;
 				theContext.SyncUInt32(aDataID);
@@ -556,12 +544,6 @@ static void SyncGameObjectPortable(PortableSaveContext& theContext, GameObject& 
 }
 
 static constexpr const uint32_t PORTABLE_FIELD_TAIL = 100U;
-
-template <typename T>
-static void ResetItemForRead(T& theItem)
-{
-	std::fill_n(reinterpret_cast<unsigned char*>(&theItem), sizeof(T), 0);
-}
 
 template <typename TEnum>
 static void SyncEnum32(PortableSaveContext& theContext, TEnum& theValue)
@@ -607,7 +589,7 @@ static void SyncBoolArray(PortableSaveContext& theContext, bool* theData, size_t
 		theContext.SyncBool(theData[i]);
 }
 
-static void SyncTodSmoothArray(PortableSaveContext& theContext, TodSmoothArray& theArray)
+static void SyncPvzpSmoothArray(PortableSaveContext& theContext, PvzpSmoothArray& theArray)
 {
 	theContext.SyncInt32(theArray.mItem);
 	theContext.SyncFloat(theArray.mWeight);
@@ -615,10 +597,10 @@ static void SyncTodSmoothArray(PortableSaveContext& theContext, TodSmoothArray& 
 	theContext.SyncFloat(theArray.mSecondLastPicked);
 }
 
-static void SyncTodSmoothArrayList(PortableSaveContext& theContext, TodSmoothArray* theData, size_t theCount)
+static void SyncPvzpSmoothArrayList(PortableSaveContext& theContext, PvzpSmoothArray* theData, size_t theCount)
 {
 	for (size_t i = 0; i < theCount; i++)
-		SyncTodSmoothArray(theContext, theData[i]);
+		SyncPvzpSmoothArray(theContext, theData[i]);
 }
 
 static void SyncPottedPlantPortable(PortableSaveContext& theContext, PottedPlant& thePlant)
@@ -866,6 +848,7 @@ static void SyncZombieTailPortable(PortableSaveContext& theContext, Zombie& theZ
 	theContext.SyncBool(theZombie.mIsFireBall);
 	SyncEnumU32(theContext, theZombie.mMoweredReanimID);
 	theContext.SyncInt32(theZombie.mLastPortalX);
+	SyncEnumU32(theContext, theZombie.mZombatarHeadReanimID);
 }
 
 static void SyncPlantTailPortable(PortableSaveContext& theContext, Plant& thePlant)
@@ -1025,7 +1008,7 @@ static void SyncGridItemTailPortable(PortableSaveContext& theContext, GridItem& 
 }
 
 template <typename TWriterFn>
-static void AppendFieldWithSync(std::vector<unsigned char>& theOut, uint32_t theFieldId, TWriterFn theWriterFn)
+static void AppendFieldWithSync(std::vector<uint8_t>& theOut, uint32_t theFieldId, TWriterFn theWriterFn)
 {
 	DataWriter aWriter;
 	aWriter.OpenMemory(0x100);
@@ -1034,7 +1017,7 @@ static void AppendFieldWithSync(std::vector<unsigned char>& theOut, uint32_t the
 	if (aContext.mFailed)
 		return;
 
-	std::vector<unsigned char> aFieldData;
+	std::vector<uint8_t> aFieldData;
 	aFieldData.resize(aWriter.GetDataLen());
 	memcpy(aFieldData.data(), aWriter.GetDataPtr(), aWriter.GetDataLen());
 	AppendU32LE(theOut, theFieldId);
@@ -1043,7 +1026,7 @@ static void AppendFieldWithSync(std::vector<unsigned char>& theOut, uint32_t the
 }
 
 template <typename TReaderFn>
-static bool ApplyFieldWithSync(const unsigned char* theData, size_t theSize, TReaderFn theReaderFn)
+static bool ApplyFieldWithSync(const uint8_t* theData, size_t theSize, TReaderFn theReaderFn)
 {
 	DataReader aReader;
 	aReader.OpenMemory(theData, static_cast<uint32_t>(theSize), false);
@@ -1052,7 +1035,7 @@ static bool ApplyFieldWithSync(const unsigned char* theData, size_t theSize, TRe
 	return !aContext.mFailed;
 }
 
-static void WriteGameObjectField(std::vector<unsigned char>& theOut, uint32_t theFieldId, GameObject& theObject)
+static void WriteGameObjectField(std::vector<uint8_t>& theOut, uint32_t theFieldId, GameObject& theObject)
 {
 	AppendFieldWithSync(theOut, theFieldId, [&](PortableSaveContext& aContext)
 	{
@@ -1060,7 +1043,7 @@ static void WriteGameObjectField(std::vector<unsigned char>& theOut, uint32_t th
 	});
 }
 
-static bool ReadGameObjectField(const unsigned char* theData, size_t theSize, GameObject& theObject)
+static bool ReadGameObjectField(const uint8_t* theData, size_t theSize, GameObject& theObject)
 {
 	return ApplyFieldWithSync(theData, theSize, [&](PortableSaveContext& aContext)
 	{
@@ -1068,25 +1051,7 @@ static bool ReadGameObjectField(const unsigned char* theData, size_t theSize, Ga
 	});
 }
 
-template <typename TObject, typename TField>
-static void WritePodTailField(std::vector<unsigned char>& theOut, uint32_t theFieldId, TObject& theObject, TField TObject::* theFirstField)
-{
-	AppendFieldWithSync(theOut, theFieldId, [&](PortableSaveContext& aContext)
-	{
-		SyncPodTail(aContext, theObject, theFirstField);
-	});
-}
-
-template <typename TObject, typename TField>
-static bool ReadPodTailField(const unsigned char* theData, size_t theSize, TObject& theObject, TField TObject::* theFirstField)
-{
-	return ApplyFieldWithSync(theData, theSize, [&](PortableSaveContext& aContext)
-	{
-		SyncPodTail(aContext, theObject, theFirstField);
-	});
-}
-
-static void WriteTLVBlob(PortableSaveContext& theContext, const std::vector<unsigned char>& theBlob)
+static void WriteTLVBlob(PortableSaveContext& theContext, const std::vector<uint8_t>& theBlob)
 {
 	uint32_t aSize = static_cast<uint32_t>(theBlob.size());
 	theContext.SyncUInt32(aSize);
@@ -1094,7 +1059,7 @@ static void WriteTLVBlob(PortableSaveContext& theContext, const std::vector<unsi
 		theContext.SyncBytes(theBlob.data(), aSize);
 }
 
-static bool ReadTLVBlob(PortableSaveContext& theContext, std::vector<unsigned char>& theBlob)
+static bool ReadTLVBlob(PortableSaveContext& theContext, std::vector<uint8_t>& theBlob)
 {
 	uint32_t aSize = 0;
 	theContext.SyncUInt32(aSize);
@@ -1104,6 +1069,49 @@ static bool ReadTLVBlob(PortableSaveContext& theContext, std::vector<unsigned ch
 	if (aSize > 0)
 		theContext.SyncBytes(theBlob.data(), aSize);
 	return !theContext.mFailed;
+}
+
+// Syncs a single object as a TLV blob: GameObject field (1U) only when TObject derives from GameObject, plus the tail field.
+template <typename TObject, typename TTailSync>
+static void SyncSingleObjectTLV(PortableSaveContext& theContext, TObject& theObject, TTailSync theTailSync)
+{
+	static constexpr bool HAS_GAME_OBJECT_FIELD = std::is_base_of_v<GameObject, TObject>;
+	if (theContext.mReading)
+	{
+		std::vector<uint8_t> aBlob;
+		if (!ReadTLVBlob(theContext, aBlob))
+			return;
+		TLVReader aReader(aBlob.data(), aBlob.size());
+		while (aReader.mOk && aReader.mPos < aReader.mSize)
+		{
+			uint32_t aFieldId = 0;
+			uint32_t aFieldSize = 0;
+			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
+				break;
+			const uint8_t* aFieldData = nullptr;
+			if (!aReader.ReadBytes(aFieldData, aFieldSize))
+				break;
+			switch (aFieldId)
+			{
+			case 1U:
+				if constexpr (HAS_GAME_OBJECT_FIELD)
+					ReadGameObjectField(aFieldData, aFieldSize, theObject);
+				break;
+			case PORTABLE_FIELD_TAIL:
+				ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ theTailSync(c, theObject); });
+				break;
+			default: break;
+			}
+		}
+	}
+	else
+	{
+		std::vector<uint8_t> aBlob;
+		if constexpr (HAS_GAME_OBJECT_FIELD)
+			WriteGameObjectField(aBlob, 1U, theObject);
+		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ theTailSync(c, theObject); });
+		WriteTLVBlob(theContext, aBlob);
+	}
 }
 
 static void SyncReanimTransformPortable(PortableSaveContext& theContext, ReanimatorTransform& theTransform)
@@ -1151,8 +1159,8 @@ static void SyncReanimationPortable(Board* theBoard, Reanimation* theReanimation
 	}
 
 	ReanimatorDefinition* aDef = theReanimation->mDefinition;
-	ReanimatorDefinition* aDefStart = gReanimatorDefArray;
-	ReanimatorDefinition* aDefEnd = gReanimatorDefArray + static_cast<int>(ReanimationType::NUM_REANIMS);
+	ReanimatorDefinition* aDefStart = gReanimatorDefArray.get();
+	ReanimatorDefinition* aDefEnd = gReanimatorDefArray.get() + static_cast<int>(ReanimationType::NUM_REANIMS);
 	if (aDef == nullptr || aDef < aDefStart || aDef >= aDefEnd)
 	{
 		int aType = static_cast<int>(theReanimation->mReanimationType);
@@ -1208,7 +1216,7 @@ static void SyncReanimationPortable(Board* theBoard, Reanimation* theReanimation
 		}
 		else
 		{
-			TodAllocator* aAllocator = FindGlobalAllocator(aCount * sizeof(ReanimatorTrackInstance));
+			PvzpAllocator* aAllocator = FindGlobalAllocator(aCount * sizeof(ReanimatorTrackInstance));
 			if (aAllocator == nullptr || !aAllocator->IsPointerFromAllocator(theReanimation->mTrackInstances) || aAllocator->IsPointerOnFreeList(theReanimation->mTrackInstances))
 			{
 				aUseTemp = true;
@@ -1234,7 +1242,7 @@ static void SyncReanimationPortable(Board* theBoard, Reanimation* theReanimation
 	}
 }
 
-static void SyncParticlePortable(TodParticle* theParticle, PortableSaveContext& theContext)
+static void SyncParticlePortable(PvzpParticle* theParticle, PortableSaveContext& theContext)
 {
 	theContext.SyncInt32(theParticle->mParticleDuration);
 	theContext.SyncInt32(theParticle->mParticleAge);
@@ -1257,7 +1265,7 @@ static void SyncParticlePortable(TodParticle* theParticle, PortableSaveContext& 
 	}
 }
 
-static void SyncParticleEmitterPortable(TodParticleSystem* theParticleSystem, TodParticleEmitter* theParticleEmitter, PortableSaveContext& theContext)
+static void SyncParticleEmitterPortable(PvzpParticleSystem* theParticleSystem, PvzpParticleEmitter* theParticleEmitter, PortableSaveContext& theContext)
 {
 	int aEmitterDefIndex = 0;
 	if (theContext.mReading)
@@ -1269,11 +1277,11 @@ static void SyncParticleEmitterPortable(TodParticleSystem* theParticleSystem, To
 	else
 	{
 		aEmitterDefIndex = (reinterpret_cast<intptr_t>(theParticleEmitter->mEmitterDef) -
-			reinterpret_cast<intptr_t>(theParticleSystem->mParticleDef->mEmitterDefs)) / sizeof(TodEmitterDefinition);
+			reinterpret_cast<intptr_t>(theParticleSystem->mParticleDef->mEmitterDefs)) / sizeof(PvzpEmitterDefinition);
 		theContext.SyncInt32(aEmitterDefIndex);
 	}
 
-	SyncDataIDListPortable((TodList<uint32_t>*)&theParticleEmitter->mParticleList, theContext, &theParticleSystem->mParticleHolder->mParticleListNodeAllocator);
+	SyncDataIDListPortable((PvzpList<uint32_t>*)&theParticleEmitter->mParticleList, theContext, &theParticleSystem->mParticleHolder->mParticleListNodeAllocator);
 	SyncVector2Portable(theContext, theParticleEmitter->mSystemCenter);
 	SyncColorPortable(theContext, theParticleEmitter->mColorOverride);
 	SyncImagePortable(theContext, theParticleEmitter->mImageOverride);
@@ -1297,9 +1305,9 @@ static void SyncParticleEmitterPortable(TodParticleSystem* theParticleSystem, To
 			theContext.SyncFloat(theParticleEmitter->mSystemFieldInterp[i][j]);
 	}
 
-	for (TodListNode<ParticleID>* aNode = theParticleEmitter->mParticleList.mHead; aNode != nullptr; aNode = aNode->mNext)
+	for (PvzpListNode<ParticleID>* aNode = theParticleEmitter->mParticleList.mHead; aNode != nullptr; aNode = aNode->mNext)
 	{
-		TodParticle* aParticle = theParticleSystem->mParticleHolder->mParticles.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
+		PvzpParticle* aParticle = theParticleSystem->mParticleHolder->mParticles.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
 		if (theContext.mReading)
 		{
 			aParticle->mParticleEmitter = theParticleEmitter;
@@ -1308,7 +1316,7 @@ static void SyncParticleEmitterPortable(TodParticleSystem* theParticleSystem, To
 	}
 }
 
-static void SyncParticleSystemPortable(Board* theBoard, TodParticleSystem* theParticleSystem, PortableSaveContext& theContext)
+static void SyncParticleSystemPortable(Board* theBoard, PvzpParticleSystem* theParticleSystem, PortableSaveContext& theContext)
 {
 	SyncParticleDefPortable(theContext, theParticleSystem->mParticleDef);
 	if (theContext.mReading)
@@ -1316,10 +1324,10 @@ static void SyncParticleSystemPortable(Board* theBoard, TodParticleSystem* thePa
 		theParticleSystem->mParticleHolder = theBoard->mApp->mEffectSystem->mParticleHolder.get();
 	}
 
-	SyncDataIDListPortable((TodList<uint32_t>*)&theParticleSystem->mEmitterList, theContext, &theParticleSystem->mParticleHolder->mEmitterListNodeAllocator);
-	for (TodListNode<ParticleEmitterID>* aNode = theParticleSystem->mEmitterList.mHead; aNode != nullptr; aNode = aNode->mNext)
+	SyncDataIDListPortable((PvzpList<uint32_t>*)&theParticleSystem->mEmitterList, theContext, &theParticleSystem->mParticleHolder->mEmitterListNodeAllocator);
+	for (PvzpListNode<ParticleEmitterID>* aNode = theParticleSystem->mEmitterList.mHead; aNode != nullptr; aNode = aNode->mNext)
 	{
-		TodParticleEmitter* aEmitter = theParticleSystem->mParticleHolder->mEmitters.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
+		PvzpParticleEmitter* aEmitter = theParticleSystem->mParticleHolder->mEmitters.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
 		SyncParticleEmitterPortable(theParticleSystem, aEmitter, theContext);
 	}
 
@@ -1368,8 +1376,8 @@ static void SyncDataArrayPortable(PortableSaveContext& theContext, DataArray<T>&
 
 	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
 	{
-		theContext.SyncUInt32(theDataArray.mBlock[i].mID);
-		theSyncFn(theDataArray.mBlock[i].mItem);
+		theContext.SyncUInt32(theDataArray.DataArrayGetIDAt(i));
+		theSyncFn(theDataArray.DataArrayGetItemAt(i));
 	}
 }
 
@@ -1389,7 +1397,7 @@ static void SyncDataArrayIdsOnlyPortable(PortableSaveContext& theContext, DataAr
 
 	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
 	{
-		theContext.SyncUInt32(theDataArray.mBlock[i].mID);
+		theContext.SyncUInt32(theDataArray.DataArrayGetIDAt(i));
 	}
 }
 
@@ -1409,13 +1417,13 @@ static void SyncDataArrayPortableTLV(PortableSaveContext& theContext, DataArray<
 
 	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
 	{
-		theContext.SyncUInt32(theDataArray.mBlock[i].mID);
+		theContext.SyncUInt32(theDataArray.DataArrayGetIDAt(i));
 		if (theContext.mReading)
 		{
 			uint32_t aItemSize = 0;
 			theContext.SyncUInt32(aItemSize);
-			ResetItemForRead(theDataArray.mBlock[i].mItem);
-			std::vector<unsigned char> aItemData;
+			T& anItem = theDataArray.DataArrayResetItemAt(i);
+			std::vector<uint8_t> aItemData;
 			aItemData.resize(aItemSize);
 			if (aItemSize > 0)
 				theContext.SyncBytes(aItemData.data(), aItemSize);
@@ -1426,20 +1434,20 @@ static void SyncDataArrayPortableTLV(PortableSaveContext& theContext, DataArray<
 				uint32_t aFieldSize = 0;
 				if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
 					break;
-				const unsigned char* aFieldData = nullptr;
+				const uint8_t* aFieldData = nullptr;
 				if (!aReader.ReadBytes(aFieldData, aFieldSize))
 					break;
-				theReadFn(aFieldId, aFieldData, aFieldSize, theDataArray.mBlock[i].mItem);
+				theReadFn(aFieldId, aFieldData, aFieldSize, anItem);
 			}
 		}
 		else
 		{
-			bool aActive = (theDataArray.mBlock[i].mID & DATA_ARRAY_KEY_MASK) != 0;
+			bool aActive = (theDataArray.DataArrayGetIDAt(i) & DATA_ARRAY_KEY_MASK) != 0;
 			uint32_t aItemSize = 0;
-			std::vector<unsigned char> aItemData;
+			std::vector<uint8_t> aItemData;
 			if (aActive)
 			{
-				theWriteFn(aItemData, theDataArray.mBlock[i].mItem);
+				theWriteFn(aItemData, theDataArray.DataArrayGetItemAt(i));
 				aItemSize = static_cast<uint32_t>(aItemData.size());
 			}
 			theContext.SyncUInt32(aItemSize);
@@ -1447,6 +1455,33 @@ static void SyncDataArrayPortableTLV(PortableSaveContext& theContext, DataArray<
 				theContext.SyncBytes(aItemData.data(), aItemSize);
 		}
 	}
+}
+
+// Syncs a DataArray of entities: GameObject field (1U) only when T derives from GameObject, plus the tail field.
+template <typename T, typename TTailSync>
+static void SyncDataArrayObjectsTLV(PortableSaveContext& theContext, DataArray<T>& theDataArray, TTailSync theTailSync)
+{
+	SyncDataArrayPortableTLV(theContext, theDataArray,
+		[&](std::vector<uint8_t>& aOut, T& anItem)
+		{
+			if constexpr (std::is_base_of_v<GameObject, T>)
+				WriteGameObjectField(aOut, 1U, anItem);
+			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ theTailSync(c, anItem); });
+		},
+		[&](uint32_t aFieldId, const uint8_t* aData, size_t aSize, T& anItem)
+		{
+			switch (aFieldId)
+			{
+			case 1U:
+				if constexpr (std::is_base_of_v<GameObject, T>)
+					ReadGameObjectField(aData, aSize, anItem);
+				break;
+			case PORTABLE_FIELD_TAIL:
+				ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ theTailSync(c, anItem); });
+				break;
+			default: break;
+			}
+		});
 }
 
 // Field IDs for Board base: These IDs are part of the on-disk format and must NOT be renumbered.
@@ -1554,14 +1589,138 @@ enum BoardBaseFieldId : uint32_t
 	BOARD_FIELD_COINS_COLLECTED,
 	BOARD_FIELD_DIAMONDS_COLLECTED,
 	BOARD_FIELD_POTTED_PLANTS_COLLECTED,
-	BOARD_FIELD_CHOCOLATE_COLLECTED
+	BOARD_FIELD_CHOCOLATE_COLLECTED,
+	BOARD_FIELD_COUNT
 };
+
+struct BoardBaseFieldEntry
+{
+	uint32_t	mFieldId;
+	void		(*mSync)(PortableSaveContext&, Board*);
+};
+
+// Single source of truth for Board base fields: field order is the write order.
+static constexpr BoardBaseFieldEntry gBoardBaseFields[] = {
+	{ BOARD_FIELD_PAUSED, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mPaused); } },
+	{ BOARD_FIELD_GRID_SQUARE_TYPE, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32Array(c, &theBoard->mGridSquareType[0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_GRID_CEL_LOOK, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mGridCelLook[0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_GRID_CEL_OFFSET, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mGridCelOffset[0][0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y * 2); } },
+	{ BOARD_FIELD_GRID_CEL_FOG, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mGridCelFog[0][0], MAX_GRID_SIZE_X * (MAX_GRID_SIZE_Y + 1)); } },
+	{ BOARD_FIELD_ENABLE_GRAVESTONES, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mEnableGraveStones); } },
+	{ BOARD_FIELD_SPECIAL_GRAVESTONE_X, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mSpecialGraveStoneX); } },
+	{ BOARD_FIELD_SPECIAL_GRAVESTONE_Y, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mSpecialGraveStoneY); } },
+	{ BOARD_FIELD_FOG_OFFSET, [](PortableSaveContext& c, Board* theBoard){ c.SyncFloat(theBoard->mFogOffset); } },
+	{ BOARD_FIELD_FOG_BLOWN_COUNTDOWN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mFogBlownCountDown); } },
+	{ BOARD_FIELD_PLANT_ROW, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32Array(c, &theBoard->mPlantRow[0], MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_WAVE_ROW_GOT_LAWN_MOWERED, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mWaveRowGotLawnMowered[0], MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_BONUS_LAWN_MOWERS_REMAINING, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mBonusLawnMowersRemaining); } },
+	{ BOARD_FIELD_ICE_MIN_X, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mIceMinX[0], MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_ICE_TIMER, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mIceTimer[0], MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_ICE_PARTICLE_ID, [](PortableSaveContext& c, Board* theBoard){ SyncEnumU32Array(c, &theBoard->mIceParticleID[0], MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_ROW_PICKING_ARRAY, [](PortableSaveContext& c, Board* theBoard){ SyncPvzpSmoothArrayList(c, &theBoard->mRowPickingArray[0], MAX_GRID_SIZE_Y); } },
+	{ BOARD_FIELD_ZOMBIES_IN_WAVE, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32Array(c, &theBoard->mZombiesInWave[0][0], MAX_ZOMBIE_WAVES * MAX_ZOMBIES_IN_WAVE); } },
+	{ BOARD_FIELD_ZOMBIE_ALLOWED, [](PortableSaveContext& c, Board* theBoard){ SyncBoolArray(c, &theBoard->mZombieAllowed[0], 100); } },
+	{ BOARD_FIELD_SUN_COUNTDOWN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mSunCountDown); } },
+	{ BOARD_FIELD_NUM_SUNS_FALLEN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mNumSunsFallen); } },
+	{ BOARD_FIELD_SHAKE_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mShakeCounter); } },
+	{ BOARD_FIELD_SHAKE_AMOUNT_X, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mShakeAmountX); } },
+	{ BOARD_FIELD_SHAKE_AMOUNT_Y, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mShakeAmountY); } },
+	{ BOARD_FIELD_BACKGROUND, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32(c, theBoard->mBackground); } },
+	{ BOARD_FIELD_LEVEL, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mLevel); } },
+	{ BOARD_FIELD_SOD_POSITION, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mSodPosition); } },
+	{ BOARD_FIELD_PREV_MOUSE_X, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mPrevMouseX); } },
+	{ BOARD_FIELD_PREV_MOUSE_Y, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mPrevMouseY); } },
+	{ BOARD_FIELD_SUN_MONEY, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mSunMoney); } },
+	{ BOARD_FIELD_NUM_WAVES, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mNumWaves); } },
+	{ BOARD_FIELD_MAIN_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mMainCounter); } },
+	{ BOARD_FIELD_EFFECT_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mEffectCounter); } },
+	{ BOARD_FIELD_DRAW_COUNT, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mDrawCount); } },
+	{ BOARD_FIELD_RISE_FROM_GRAVE_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mRiseFromGraveCounter); } },
+	{ BOARD_FIELD_OUT_OF_MONEY_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mOutOfMoneyCounter); } },
+	{ BOARD_FIELD_CURRENT_WAVE, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mCurrentWave); } },
+	{ BOARD_FIELD_TOTAL_SPAWNED_WAVES, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mTotalSpawnedWaves); } },
+	{ BOARD_FIELD_TUTORIAL_STATE, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32(c, theBoard->mTutorialState); } },
+	{ BOARD_FIELD_TUTORIAL_PARTICLE_ID, [](PortableSaveContext& c, Board* theBoard){ SyncEnumU32(c, theBoard->mTutorialParticleID); } },
+	{ BOARD_FIELD_TUTORIAL_TIMER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mTutorialTimer); } },
+	{ BOARD_FIELD_LAST_BUNGEE_WAVE, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mLastBungeeWave); } },
+	{ BOARD_FIELD_ZOMBIE_HEALTH_TO_NEXT_WAVE, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mZombieHealthToNextWave); } },
+	{ BOARD_FIELD_ZOMBIE_HEALTH_WAVE_START, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mZombieHealthWaveStart); } },
+	{ BOARD_FIELD_ZOMBIE_COUNTDOWN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mZombieCountDown); } },
+	{ BOARD_FIELD_ZOMBIE_COUNTDOWN_START, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mZombieCountDownStart); } },
+	{ BOARD_FIELD_HUGE_WAVE_COUNTDOWN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mHugeWaveCountDown); } },
+	{ BOARD_FIELD_HELP_DISPLAYED, [](PortableSaveContext& c, Board* theBoard){ SyncBoolArray(c, &theBoard->mHelpDisplayed[0], NUM_ADVICE_TYPES); } },
+	{ BOARD_FIELD_HELP_INDEX, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32(c, theBoard->mHelpIndex); } },
+	{ BOARD_FIELD_FINAL_BOSS_KILLED, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mFinalBossKilled); } },
+	{ BOARD_FIELD_SHOW_SHOVEL, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mShowShovel); } },
+	{ BOARD_FIELD_COIN_BANK_FADE_COUNT, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mCoinBankFadeCount); } },
+	{ BOARD_FIELD_DEBUG_TEXT_MODE, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32(c, theBoard->mDebugTextMode); } },
+	{ BOARD_FIELD_LEVEL_COMPLETE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mLevelComplete); } },
+	{ BOARD_FIELD_BOARD_FADE_OUT_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mBoardFadeOutCounter); } },
+	{ BOARD_FIELD_NEXT_SURVIVAL_STAGE_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mNextSurvivalStageCounter); } },
+	{ BOARD_FIELD_SCORE_NEXT_MOWER_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mScoreNextMowerCounter); } },
+	{ BOARD_FIELD_LEVEL_AWARD_SPAWNED, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mLevelAwardSpawned); } },
+	{ BOARD_FIELD_PROGRESS_METER_WIDTH, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mProgressMeterWidth); } },
+	{ BOARD_FIELD_FLAG_RAISE_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mFlagRaiseCounter); } },
+	{ BOARD_FIELD_ICE_TRAP_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mIceTrapCounter); } },
+	{ BOARD_FIELD_BOARD_RAND_SEED, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mBoardRandSeed); } },
+	{ BOARD_FIELD_POOL_SPARKLY_PARTICLE_ID, [](PortableSaveContext& c, Board* theBoard){ SyncEnumU32(c, theBoard->mPoolSparklyParticleID); } },
+	{ BOARD_FIELD_FWOOSH_ID, [](PortableSaveContext& c, Board* theBoard){ SyncEnumU32Array(c, &theBoard->mFwooshID[0][0], MAX_GRID_SIZE_Y * 12); } },
+	{ BOARD_FIELD_FWOOSH_COUNTDOWN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mFwooshCountDown); } },
+	{ BOARD_FIELD_TIME_STOP_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mTimeStopCounter); } },
+	{ BOARD_FIELD_DROPPED_FIRST_COIN, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mDroppedFirstCoin); } },
+	{ BOARD_FIELD_FINAL_WAVE_SOUND_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mFinalWaveSoundCounter); } },
+	{ BOARD_FIELD_COB_CANNON_CURSOR_DELAY_COUNTER, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mCobCannonCursorDelayCounter); } },
+	{ BOARD_FIELD_COB_CANNON_MOUSE_X, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mCobCannonMouseX); } },
+	{ BOARD_FIELD_COB_CANNON_MOUSE_Y, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mCobCannonMouseY); } },
+	{ BOARD_FIELD_KILLED_YETI, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mKilledYeti); } },
+	{ BOARD_FIELD_MUSTACHE_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mMustacheMode); } },
+	{ BOARD_FIELD_SUPER_MOWER_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mSuperMowerMode); } },
+	{ BOARD_FIELD_FUTURE_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mFutureMode); } },
+	{ BOARD_FIELD_PINATA_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mPinataMode); } },
+	{ BOARD_FIELD_DANCE_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mDanceMode); } },
+	{ BOARD_FIELD_DAISY_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mDaisyMode); } },
+	{ BOARD_FIELD_SUKHBIR_MODE, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mSukhbirMode); } },
+	{ BOARD_FIELD_PREV_BOARD_RESULT, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32(c, theBoard->mPrevBoardResult); } },
+	{ BOARD_FIELD_TRIGGERED_LAWN_MOWERS, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mTriggeredLawnMowers); } },
+	{ BOARD_FIELD_PLAY_TIME_ACTIVE_LEVEL, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mPlayTimeActiveLevel); } },
+	{ BOARD_FIELD_PLAY_TIME_INACTIVE_LEVEL, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mPlayTimeInactiveLevel); } },
+	{ BOARD_FIELD_MAX_SUN_PLANTS, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mMaxSunPlants); } },
+	{ BOARD_FIELD_START_DRAW_TIME, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt64(theBoard->mStartDrawTime); } },
+	{ BOARD_FIELD_INTERVAL_DRAW_TIME, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt64(theBoard->mIntervalDrawTime); } },
+	{ BOARD_FIELD_INTERVAL_DRAW_COUNT_START, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mIntervalDrawCountStart); } },
+	{ BOARD_FIELD_MIN_FPS, [](PortableSaveContext& c, Board* theBoard){ c.SyncFloat(theBoard->mMinFPS); } },
+	{ BOARD_FIELD_PRELOAD_TIME, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mPreloadTime); } },
+	{ BOARD_FIELD_GAME_ID, [](PortableSaveContext& c, Board* theBoard){ int64_t aGameId = static_cast<int64_t>(theBoard->mGameID); c.SyncInt64(aGameId); if (c.mReading) theBoard->mGameID = static_cast<intptr_t>(aGameId); } },
+	{ BOARD_FIELD_GRAVES_CLEARED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mGravesCleared); } },
+	{ BOARD_FIELD_PLANTS_EATEN, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mPlantsEaten); } },
+	{ BOARD_FIELD_PLANTS_SHOVELED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mPlantsShoveled); } },
+	{ BOARD_FIELD_PEA_SHOOTER_USED, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mPeaShooterUsed); } },
+	{ BOARD_FIELD_CATAPULT_PLANTS_USED, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mCatapultPlantsUsed); } },
+	{ BOARD_FIELD_MUSHROOM_AND_COFFEE_BEANS_ONLY, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mMushroomAndCoffeeBeansOnly); } },
+	{ BOARD_FIELD_MUSHROOMS_USED, [](PortableSaveContext& c, Board* theBoard){ c.SyncBool(theBoard->mMushroomsUsed); } },
+	{ BOARD_FIELD_LEVEL_COINS_COLLECTED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mLevelCoinsCollected); } },
+	{ BOARD_FIELD_GARGANTUARS_KILLS_BY_CORN_COB, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mGargantuarsKillsByCornCob); } },
+	{ BOARD_FIELD_COINS_COLLECTED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mCoinsCollected); } },
+	{ BOARD_FIELD_DIAMONDS_COLLECTED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mDiamondsCollected); } },
+	{ BOARD_FIELD_POTTED_PLANTS_COLLECTED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mPottedPlantsCollected); } },
+	{ BOARD_FIELD_CHOCOLATE_COLLECTED, [](PortableSaveContext& c, Board* theBoard){ c.SyncUInt32(theBoard->mChocolateCollected); } },
+};
+
+// The enum is contiguous starting at 1: the table must cover every id, in id order, so readers can index it directly.
+static_assert([]{
+	if (sizeof(gBoardBaseFields) / sizeof(gBoardBaseFields[0]) != BOARD_FIELD_COUNT - 1)
+		return false;
+	for (uint32_t i = 0; i < sizeof(gBoardBaseFields) / sizeof(gBoardBaseFields[0]); i++)
+		if (gBoardBaseFields[i].mFieldId != i + 1)
+			return false;
+	return true;
+}(), "gBoardBaseFields must cover every BoardBaseFieldId in id order");
 
 static void SyncBoardBasePortable(PortableSaveContext& theContext, Board* theBoard)
 {
 	if (theContext.mReading)
 	{
-		std::vector<unsigned char> aBlob;
+		std::vector<uint8_t> aBlob;
 		if (!ReadTLVBlob(theContext, aBlob))
 			return;
 		TLVReader aReader(aBlob.data(), aBlob.size());
@@ -1571,348 +1730,53 @@ static void SyncBoardBasePortable(PortableSaveContext& theContext, Board* theBoa
 			uint32_t aFieldSize = 0;
 			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
 				break;
-			const unsigned char* aFieldData = nullptr;
+			const uint8_t* aFieldData = nullptr;
 			if (!aReader.ReadBytes(aFieldData, aFieldSize))
 				break;
-
-			switch (aFieldId)
+			if (aFieldId >= 1 && aFieldId <= sizeof(gBoardBaseFields) / sizeof(gBoardBaseFields[0]))
 			{
-			case BOARD_FIELD_PAUSED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mPaused); }); break;
-			case BOARD_FIELD_GRID_SQUARE_TYPE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32Array(c, &theBoard->mGridSquareType[0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_GRID_CEL_LOOK: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mGridCelLook[0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_GRID_CEL_OFFSET: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mGridCelOffset[0][0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y * 2); }); break;
-			case BOARD_FIELD_GRID_CEL_FOG: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mGridCelFog[0][0], MAX_GRID_SIZE_X * (MAX_GRID_SIZE_Y + 1)); }); break;
-			case BOARD_FIELD_ENABLE_GRAVESTONES: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mEnableGraveStones); }); break;
-			case BOARD_FIELD_SPECIAL_GRAVESTONE_X: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSpecialGraveStoneX); }); break;
-			case BOARD_FIELD_SPECIAL_GRAVESTONE_Y: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSpecialGraveStoneY); }); break;
-			case BOARD_FIELD_FOG_OFFSET: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncFloat(theBoard->mFogOffset); }); break;
-			case BOARD_FIELD_FOG_BLOWN_COUNTDOWN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFogBlownCountDown); }); break;
-			case BOARD_FIELD_PLANT_ROW: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32Array(c, &theBoard->mPlantRow[0], MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_WAVE_ROW_GOT_LAWN_MOWERED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mWaveRowGotLawnMowered[0], MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_BONUS_LAWN_MOWERS_REMAINING: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mBonusLawnMowersRemaining); }); break;
-			case BOARD_FIELD_ICE_MIN_X: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mIceMinX[0], MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_ICE_TIMER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mIceTimer[0], MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_ICE_PARTICLE_ID: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnumU32Array(c, &theBoard->mIceParticleID[0], MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_ROW_PICKING_ARRAY: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncTodSmoothArrayList(c, &theBoard->mRowPickingArray[0], MAX_GRID_SIZE_Y); }); break;
-			case BOARD_FIELD_ZOMBIES_IN_WAVE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32Array(c, &theBoard->mZombiesInWave[0][0], MAX_ZOMBIE_WAVES * MAX_ZOMBIES_IN_WAVE); }); break;
-			case BOARD_FIELD_ZOMBIE_ALLOWED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncBoolArray(c, &theBoard->mZombieAllowed[0], 100); }); break;
-			case BOARD_FIELD_SUN_COUNTDOWN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSunCountDown); }); break;
-			case BOARD_FIELD_NUM_SUNS_FALLEN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mNumSunsFallen); }); break;
-			case BOARD_FIELD_SHAKE_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mShakeCounter); }); break;
-			case BOARD_FIELD_SHAKE_AMOUNT_X: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mShakeAmountX); }); break;
-			case BOARD_FIELD_SHAKE_AMOUNT_Y: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mShakeAmountY); }); break;
-			case BOARD_FIELD_BACKGROUND: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mBackground); }); break;
-			case BOARD_FIELD_LEVEL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mLevel); }); break;
-			case BOARD_FIELD_SOD_POSITION: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSodPosition); }); break;
-			case BOARD_FIELD_PREV_MOUSE_X: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mPrevMouseX); }); break;
-			case BOARD_FIELD_PREV_MOUSE_Y: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mPrevMouseY); }); break;
-			case BOARD_FIELD_SUN_MONEY: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSunMoney); }); break;
-			case BOARD_FIELD_NUM_WAVES: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mNumWaves); }); break;
-			case BOARD_FIELD_MAIN_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mMainCounter); }); break;
-			case BOARD_FIELD_EFFECT_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mEffectCounter); }); break;
-			case BOARD_FIELD_DRAW_COUNT: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mDrawCount); }); break;
-			case BOARD_FIELD_RISE_FROM_GRAVE_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mRiseFromGraveCounter); }); break;
-			case BOARD_FIELD_OUT_OF_MONEY_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mOutOfMoneyCounter); }); break;
-			case BOARD_FIELD_CURRENT_WAVE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCurrentWave); }); break;
-			case BOARD_FIELD_TOTAL_SPAWNED_WAVES: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTotalSpawnedWaves); }); break;
-			case BOARD_FIELD_TUTORIAL_STATE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mTutorialState); }); break;
-			case BOARD_FIELD_TUTORIAL_PARTICLE_ID: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnumU32(c, theBoard->mTutorialParticleID); }); break;
-			case BOARD_FIELD_TUTORIAL_TIMER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTutorialTimer); }); break;
-			case BOARD_FIELD_LAST_BUNGEE_WAVE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mLastBungeeWave); }); break;
-			case BOARD_FIELD_ZOMBIE_HEALTH_TO_NEXT_WAVE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieHealthToNextWave); }); break;
-			case BOARD_FIELD_ZOMBIE_HEALTH_WAVE_START: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieHealthWaveStart); }); break;
-			case BOARD_FIELD_ZOMBIE_COUNTDOWN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieCountDown); }); break;
-			case BOARD_FIELD_ZOMBIE_COUNTDOWN_START: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieCountDownStart); }); break;
-			case BOARD_FIELD_HUGE_WAVE_COUNTDOWN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mHugeWaveCountDown); }); break;
-			case BOARD_FIELD_HELP_DISPLAYED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncBoolArray(c, &theBoard->mHelpDisplayed[0], NUM_ADVICE_TYPES); }); break;
-			case BOARD_FIELD_HELP_INDEX: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mHelpIndex); }); break;
-			case BOARD_FIELD_FINAL_BOSS_KILLED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mFinalBossKilled); }); break;
-			case BOARD_FIELD_SHOW_SHOVEL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mShowShovel); }); break;
-			case BOARD_FIELD_COIN_BANK_FADE_COUNT: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCoinBankFadeCount); }); break;
-			case BOARD_FIELD_DEBUG_TEXT_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mDebugTextMode); }); break;
-			case BOARD_FIELD_LEVEL_COMPLETE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mLevelComplete); }); break;
-			case BOARD_FIELD_BOARD_FADE_OUT_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mBoardFadeOutCounter); }); break;
-			case BOARD_FIELD_NEXT_SURVIVAL_STAGE_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mNextSurvivalStageCounter); }); break;
-			case BOARD_FIELD_SCORE_NEXT_MOWER_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mScoreNextMowerCounter); }); break;
-			case BOARD_FIELD_LEVEL_AWARD_SPAWNED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mLevelAwardSpawned); }); break;
-			case BOARD_FIELD_PROGRESS_METER_WIDTH: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mProgressMeterWidth); }); break;
-			case BOARD_FIELD_FLAG_RAISE_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFlagRaiseCounter); }); break;
-			case BOARD_FIELD_ICE_TRAP_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mIceTrapCounter); }); break;
-			case BOARD_FIELD_BOARD_RAND_SEED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mBoardRandSeed); }); break;
-			case BOARD_FIELD_POOL_SPARKLY_PARTICLE_ID: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnumU32(c, theBoard->mPoolSparklyParticleID); }); break;
-			case BOARD_FIELD_FWOOSH_ID: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnumU32Array(c, &theBoard->mFwooshID[0][0], MAX_GRID_SIZE_Y * 12); }); break;
-			case BOARD_FIELD_FWOOSH_COUNTDOWN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFwooshCountDown); }); break;
-			case BOARD_FIELD_TIME_STOP_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTimeStopCounter); }); break;
-			case BOARD_FIELD_DROPPED_FIRST_COIN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mDroppedFirstCoin); }); break;
-			case BOARD_FIELD_FINAL_WAVE_SOUND_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFinalWaveSoundCounter); }); break;
-			case BOARD_FIELD_COB_CANNON_CURSOR_DELAY_COUNTER: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCobCannonCursorDelayCounter); }); break;
-			case BOARD_FIELD_COB_CANNON_MOUSE_X: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCobCannonMouseX); }); break;
-			case BOARD_FIELD_COB_CANNON_MOUSE_Y: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCobCannonMouseY); }); break;
-			case BOARD_FIELD_KILLED_YETI: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mKilledYeti); }); break;
-			case BOARD_FIELD_MUSTACHE_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mMustacheMode); }); break;
-			case BOARD_FIELD_SUPER_MOWER_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mSuperMowerMode); }); break;
-			case BOARD_FIELD_FUTURE_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mFutureMode); }); break;
-			case BOARD_FIELD_PINATA_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mPinataMode); }); break;
-			case BOARD_FIELD_DANCE_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mDanceMode); }); break;
-			case BOARD_FIELD_DAISY_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mDaisyMode); }); break;
-			case BOARD_FIELD_SUKHBIR_MODE: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mSukhbirMode); }); break;
-			case BOARD_FIELD_PREV_BOARD_RESULT: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mPrevBoardResult); }); break;
-			case BOARD_FIELD_TRIGGERED_LAWN_MOWERS: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTriggeredLawnMowers); }); break;
-			case BOARD_FIELD_PLAY_TIME_ACTIVE_LEVEL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlayTimeActiveLevel); }); break;
-			case BOARD_FIELD_PLAY_TIME_INACTIVE_LEVEL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlayTimeInactiveLevel); }); break;
-			case BOARD_FIELD_MAX_SUN_PLANTS: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mMaxSunPlants); }); break;
-			case BOARD_FIELD_START_DRAW_TIME: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt64(theBoard->mStartDrawTime); }); break;
-			case BOARD_FIELD_INTERVAL_DRAW_TIME: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt64(theBoard->mIntervalDrawTime); }); break;
-			case BOARD_FIELD_INTERVAL_DRAW_COUNT_START: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mIntervalDrawCountStart); }); break;
-			case BOARD_FIELD_MIN_FPS: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncFloat(theBoard->mMinFPS); }); break;
-			case BOARD_FIELD_PRELOAD_TIME: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mPreloadTime); }); break;
-			case BOARD_FIELD_GAME_ID: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ int64_t aGameId = static_cast<int64_t>(theBoard->mGameID); c.SyncInt64(aGameId); if (c.mReading) theBoard->mGameID = static_cast<intptr_t>(aGameId); }); break;
-			case BOARD_FIELD_GRAVES_CLEARED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mGravesCleared); }); break;
-			case BOARD_FIELD_PLANTS_EATEN: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlantsEaten); }); break;
-			case BOARD_FIELD_PLANTS_SHOVELED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlantsShoveled); }); break;
-			case BOARD_FIELD_PEA_SHOOTER_USED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mPeaShooterUsed); }); break;
-			case BOARD_FIELD_CATAPULT_PLANTS_USED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mCatapultPlantsUsed); }); break;
-			case BOARD_FIELD_MUSHROOM_AND_COFFEE_BEANS_ONLY: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mMushroomAndCoffeeBeansOnly); }); break;
-			case BOARD_FIELD_MUSHROOMS_USED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mMushroomsUsed); }); break;
-			case BOARD_FIELD_LEVEL_COINS_COLLECTED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mLevelCoinsCollected); }); break;
-			case BOARD_FIELD_GARGANTUARS_KILLS_BY_CORN_COB: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mGargantuarsKillsByCornCob); }); break;
-			case BOARD_FIELD_COINS_COLLECTED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mCoinsCollected); }); break;
-			case BOARD_FIELD_DIAMONDS_COLLECTED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mDiamondsCollected); }); break;
-			case BOARD_FIELD_POTTED_PLANTS_COLLECTED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPottedPlantsCollected); }); break;
-			case BOARD_FIELD_CHOCOLATE_COLLECTED: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mChocolateCollected); }); break;
-			default: break;
+				const BoardBaseFieldEntry& aField = gBoardBaseFields[aFieldId - 1];
+				ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ aField.mSync(c, theBoard); });
 			}
 		}
 	}
 	else
 	{
-		std::vector<unsigned char> aBlob;
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PAUSED, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mPaused); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GRID_SQUARE_TYPE, [&](PortableSaveContext& c){ SyncEnum32Array(c, &theBoard->mGridSquareType[0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GRID_CEL_LOOK, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mGridCelLook[0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GRID_CEL_OFFSET, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mGridCelOffset[0][0][0], MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y * 2); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GRID_CEL_FOG, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mGridCelFog[0][0], MAX_GRID_SIZE_X * (MAX_GRID_SIZE_Y + 1)); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ENABLE_GRAVESTONES, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mEnableGraveStones); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SPECIAL_GRAVESTONE_X, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSpecialGraveStoneX); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SPECIAL_GRAVESTONE_Y, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSpecialGraveStoneY); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FOG_OFFSET, [&](PortableSaveContext& c){ c.SyncFloat(theBoard->mFogOffset); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FOG_BLOWN_COUNTDOWN, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFogBlownCountDown); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PLANT_ROW, [&](PortableSaveContext& c){ SyncEnum32Array(c, &theBoard->mPlantRow[0], MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_WAVE_ROW_GOT_LAWN_MOWERED, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mWaveRowGotLawnMowered[0], MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_BONUS_LAWN_MOWERS_REMAINING, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mBonusLawnMowersRemaining); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ICE_MIN_X, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mIceMinX[0], MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ICE_TIMER, [&](PortableSaveContext& c){ SyncInt32Array(c, &theBoard->mIceTimer[0], MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ICE_PARTICLE_ID, [&](PortableSaveContext& c){ SyncEnumU32Array(c, &theBoard->mIceParticleID[0], MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ROW_PICKING_ARRAY, [&](PortableSaveContext& c){ SyncTodSmoothArrayList(c, &theBoard->mRowPickingArray[0], MAX_GRID_SIZE_Y); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ZOMBIES_IN_WAVE, [&](PortableSaveContext& c){ SyncEnum32Array(c, &theBoard->mZombiesInWave[0][0], MAX_ZOMBIE_WAVES * MAX_ZOMBIES_IN_WAVE); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ZOMBIE_ALLOWED, [&](PortableSaveContext& c){ SyncBoolArray(c, &theBoard->mZombieAllowed[0], 100); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SUN_COUNTDOWN, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSunCountDown); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_NUM_SUNS_FALLEN, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mNumSunsFallen); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SHAKE_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mShakeCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SHAKE_AMOUNT_X, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mShakeAmountX); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SHAKE_AMOUNT_Y, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mShakeAmountY); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_BACKGROUND, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mBackground); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_LEVEL, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mLevel); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SOD_POSITION, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSodPosition); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PREV_MOUSE_X, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mPrevMouseX); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PREV_MOUSE_Y, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mPrevMouseY); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SUN_MONEY, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mSunMoney); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_NUM_WAVES, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mNumWaves); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_MAIN_COUNTER, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mMainCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_EFFECT_COUNTER, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mEffectCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_DRAW_COUNT, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mDrawCount); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_RISE_FROM_GRAVE_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mRiseFromGraveCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_OUT_OF_MONEY_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mOutOfMoneyCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_CURRENT_WAVE, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCurrentWave); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_TOTAL_SPAWNED_WAVES, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTotalSpawnedWaves); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_TUTORIAL_STATE, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mTutorialState); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_TUTORIAL_PARTICLE_ID, [&](PortableSaveContext& c){ SyncEnumU32(c, theBoard->mTutorialParticleID); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_TUTORIAL_TIMER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTutorialTimer); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_LAST_BUNGEE_WAVE, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mLastBungeeWave); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ZOMBIE_HEALTH_TO_NEXT_WAVE, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieHealthToNextWave); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ZOMBIE_HEALTH_WAVE_START, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieHealthWaveStart); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ZOMBIE_COUNTDOWN, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieCountDown); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ZOMBIE_COUNTDOWN_START, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mZombieCountDownStart); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_HUGE_WAVE_COUNTDOWN, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mHugeWaveCountDown); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_HELP_DISPLAYED, [&](PortableSaveContext& c){ SyncBoolArray(c, &theBoard->mHelpDisplayed[0], NUM_ADVICE_TYPES); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_HELP_INDEX, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mHelpIndex); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FINAL_BOSS_KILLED, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mFinalBossKilled); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SHOW_SHOVEL, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mShowShovel); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_COIN_BANK_FADE_COUNT, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCoinBankFadeCount); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_DEBUG_TEXT_MODE, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mDebugTextMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_LEVEL_COMPLETE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mLevelComplete); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_BOARD_FADE_OUT_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mBoardFadeOutCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_NEXT_SURVIVAL_STAGE_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mNextSurvivalStageCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SCORE_NEXT_MOWER_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mScoreNextMowerCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_LEVEL_AWARD_SPAWNED, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mLevelAwardSpawned); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PROGRESS_METER_WIDTH, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mProgressMeterWidth); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FLAG_RAISE_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFlagRaiseCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_ICE_TRAP_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mIceTrapCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_BOARD_RAND_SEED, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mBoardRandSeed); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_POOL_SPARKLY_PARTICLE_ID, [&](PortableSaveContext& c){ SyncEnumU32(c, theBoard->mPoolSparklyParticleID); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FWOOSH_ID, [&](PortableSaveContext& c){ SyncEnumU32Array(c, &theBoard->mFwooshID[0][0], MAX_GRID_SIZE_Y * 12); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FWOOSH_COUNTDOWN, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFwooshCountDown); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_TIME_STOP_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTimeStopCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_DROPPED_FIRST_COIN, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mDroppedFirstCoin); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FINAL_WAVE_SOUND_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mFinalWaveSoundCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_COB_CANNON_CURSOR_DELAY_COUNTER, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCobCannonCursorDelayCounter); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_COB_CANNON_MOUSE_X, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCobCannonMouseX); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_COB_CANNON_MOUSE_Y, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mCobCannonMouseY); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_KILLED_YETI, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mKilledYeti); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_MUSTACHE_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mMustacheMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SUPER_MOWER_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mSuperMowerMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_FUTURE_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mFutureMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PINATA_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mPinataMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_DANCE_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mDanceMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_DAISY_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mDaisyMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_SUKHBIR_MODE, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mSukhbirMode); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PREV_BOARD_RESULT, [&](PortableSaveContext& c){ SyncEnum32(c, theBoard->mPrevBoardResult); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_TRIGGERED_LAWN_MOWERS, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mTriggeredLawnMowers); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PLAY_TIME_ACTIVE_LEVEL, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlayTimeActiveLevel); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PLAY_TIME_INACTIVE_LEVEL, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlayTimeInactiveLevel); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_MAX_SUN_PLANTS, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mMaxSunPlants); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_START_DRAW_TIME, [&](PortableSaveContext& c){ c.SyncInt64(theBoard->mStartDrawTime); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_INTERVAL_DRAW_TIME, [&](PortableSaveContext& c){ c.SyncInt64(theBoard->mIntervalDrawTime); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_INTERVAL_DRAW_COUNT_START, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mIntervalDrawCountStart); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_MIN_FPS, [&](PortableSaveContext& c){ c.SyncFloat(theBoard->mMinFPS); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PRELOAD_TIME, [&](PortableSaveContext& c){ c.SyncInt32(theBoard->mPreloadTime); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GAME_ID, [&](PortableSaveContext& c){ int64_t aGameId = static_cast<int64_t>(theBoard->mGameID); c.SyncInt64(aGameId); if (c.mReading) theBoard->mGameID = static_cast<intptr_t>(aGameId); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GRAVES_CLEARED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mGravesCleared); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PLANTS_EATEN, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlantsEaten); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PLANTS_SHOVELED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPlantsShoveled); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_PEA_SHOOTER_USED, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mPeaShooterUsed); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_CATAPULT_PLANTS_USED, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mCatapultPlantsUsed); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_MUSHROOM_AND_COFFEE_BEANS_ONLY, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mMushroomAndCoffeeBeansOnly); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_MUSHROOMS_USED, [&](PortableSaveContext& c){ c.SyncBool(theBoard->mMushroomsUsed); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_LEVEL_COINS_COLLECTED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mLevelCoinsCollected); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_GARGANTUARS_KILLS_BY_CORN_COB, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mGargantuarsKillsByCornCob); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_COINS_COLLECTED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mCoinsCollected); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_DIAMONDS_COLLECTED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mDiamondsCollected); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_POTTED_PLANTS_COLLECTED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mPottedPlantsCollected); });
-		AppendFieldWithSync(aBlob, BOARD_FIELD_CHOCOLATE_COLLECTED, [&](PortableSaveContext& c){ c.SyncUInt32(theBoard->mChocolateCollected); });
+		std::vector<uint8_t> aBlob;
+		for (const BoardBaseFieldEntry& aField : gBoardBaseFields)
+			AppendFieldWithSync(aBlob, aField.mFieldId, [&](PortableSaveContext& c){ aField.mSync(c, theBoard); });
 		WriteTLVBlob(theContext, aBlob);
 	}
 }
 
 static void SyncZombiesPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mZombies,
-		[&](std::vector<unsigned char>& aOut, Zombie& theZombie)
-		{
-			WriteGameObjectField(aOut, 1U, theZombie);
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncZombieTailPortable(c, theZombie); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Zombie& theZombie)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aData, aSize, theZombie); break;
-			case 2U: ReadPodTailField(aData, aSize, theZombie, &Zombie::mZombieType); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncZombieTailPortable(c, theZombie); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mZombies, SyncZombieTailPortable);
 }
 
 static void SyncPlantsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mPlants,
-		[&](std::vector<unsigned char>& aOut, Plant& thePlant)
-		{
-			WriteGameObjectField(aOut, 1U, thePlant);
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncPlantTailPortable(c, thePlant); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Plant& thePlant)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aData, aSize, thePlant); break;
-			case 2U: ReadPodTailField(aData, aSize, thePlant, &Plant::mSeedType); break; // legacy
-			case 3U: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ c.SyncEnum(thePlant.mSeedType); }); break; // legacy
-			case 4U: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ c.SyncEnum(thePlant.mImitaterType); }); break; // legacy
-			case 5U: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ c.SyncInt32(thePlant.mPottedPlantIndex); }); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncPlantTailPortable(c, thePlant); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mPlants, SyncPlantTailPortable);
 }
 
 static void SyncProjectilesPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mProjectiles,
-		[&](std::vector<unsigned char>& aOut, Projectile& theProjectile)
-		{
-			WriteGameObjectField(aOut, 1U, theProjectile);
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncProjectileTailPortable(c, theProjectile); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Projectile& theProjectile)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aData, aSize, theProjectile); break;
-			case 2U: ReadPodTailField(aData, aSize, theProjectile, &Projectile::mMotionType); break; // legacy
-			case 3U: ReadPodTailField(aData, aSize, theProjectile, &Projectile::mFrame); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncProjectileTailPortable(c, theProjectile); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mProjectiles, SyncProjectileTailPortable);
 }
 
 static void SyncCoinsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mCoins,
-		[&](std::vector<unsigned char>& aOut, Coin& theCoin)
-		{
-			WriteGameObjectField(aOut, 1U, theCoin);
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncCoinTailPortable(c, theCoin); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Coin& theCoin)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aData, aSize, theCoin); break;
-			case 2U: ReadPodTailField(aData, aSize, theCoin, &Coin::mType); break; // legacy
-			case 3U: ReadPodTailField(aData, aSize, theCoin, &Coin::mPosX); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncCoinTailPortable(c, theCoin); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mCoins, SyncCoinTailPortable);
 }
 
 static void SyncMowersPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mLawnMowers,
-		[&](std::vector<unsigned char>& aOut, LawnMower& theMower)
-		{
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncLawnMowerTailPortable(c, theMower); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, LawnMower& theMower)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadPodTailField(aData, aSize, theMower, &LawnMower::mPosX); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncLawnMowerTailPortable(c, theMower); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mLawnMowers, SyncLawnMowerTailPortable);
 }
 
 static void SyncGridItemsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mGridItems,
-		[&](std::vector<unsigned char>& aOut, GridItem& theItem)
-		{
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncGridItemTailPortable(c, theItem); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, GridItem& theItem)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadPodTailField(aData, aSize, theItem, &GridItem::mGridItemType); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncGridItemTailPortable(c, theItem); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mGridItems, SyncGridItemTailPortable);
 }
 
 static void SyncParticleEmittersPortable(PortableSaveContext& theContext, Board* theBoard)
@@ -1928,14 +1792,14 @@ static void SyncParticlesPortable(PortableSaveContext& theContext, Board* theBoa
 static void SyncParticleSystemsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
 	SyncDataArrayPortableTLV(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mParticleSystems,
-		[theBoard](std::vector<unsigned char>& aOut, TodParticleSystem& theSystem)
+		[theBoard](std::vector<uint8_t>& aOut, PvzpParticleSystem& theSystem)
 		{
 			AppendFieldWithSync(aOut, 1U, [&](PortableSaveContext& aContext)
 			{
 				SyncParticleSystemPortable(theBoard, &theSystem, aContext);
 			});
 		},
-		[theBoard](uint32_t aFieldId, const unsigned char* aData, size_t aSize, TodParticleSystem& theSystem)
+		[theBoard](uint32_t aFieldId, const uint8_t* aData, size_t aSize, PvzpParticleSystem& theSystem)
 		{
 			if (aFieldId == 1U)
 			{
@@ -1950,14 +1814,14 @@ static void SyncParticleSystemsPortable(PortableSaveContext& theContext, Board* 
 static void SyncReanimationsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
 	SyncDataArrayPortableTLV(theContext, theBoard->mApp->mEffectSystem->mReanimationHolder->mReanimations,
-		[theBoard](std::vector<unsigned char>& aOut, Reanimation& theReanimation)
+		[theBoard](std::vector<uint8_t>& aOut, Reanimation& theReanimation)
 		{
 			AppendFieldWithSync(aOut, 1U, [&](PortableSaveContext& aContext)
 			{
 				SyncReanimationPortable(theBoard, &theReanimation, aContext);
 			});
 		},
-		[theBoard](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Reanimation& theReanimation)
+		[theBoard](uint32_t aFieldId, const uint8_t* aData, size_t aSize, Reanimation& theReanimation)
 		{
 			if (aFieldId == 1U)
 			{
@@ -1972,14 +1836,14 @@ static void SyncReanimationsPortable(PortableSaveContext& theContext, Board* the
 static void SyncTrailsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
 	SyncDataArrayPortableTLV(theContext, theBoard->mApp->mEffectSystem->mTrailHolder->mTrails,
-		[theBoard](std::vector<unsigned char>& aOut, Trail& theTrail)
+		[theBoard](std::vector<uint8_t>& aOut, Trail& theTrail)
 		{
 			AppendFieldWithSync(aOut, 1U, [&](PortableSaveContext& aContext)
 			{
 				SyncTrailPortable(theBoard, &theTrail, aContext);
 			});
 		},
-		[theBoard](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Trail& theTrail)
+		[theBoard](uint32_t aFieldId, const uint8_t* aData, size_t aSize, Trail& theTrail)
 		{
 			if (aFieldId == 1U)
 			{
@@ -1993,160 +1857,27 @@ static void SyncTrailsPortable(PortableSaveContext& theContext, Board* theBoard)
 
 static void SyncAttachmentsPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	SyncDataArrayPortableTLV(theContext, theBoard->mApp->mEffectSystem->mAttachmentHolder->mAttachments,
-		[&](std::vector<unsigned char>& aOut, Attachment& theAttachment)
-		{
-			AppendFieldWithSync(aOut, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncAttachmentTailPortable(c, theAttachment); });
-		},
-		[&](uint32_t aFieldId, const unsigned char* aData, size_t aSize, Attachment& theAttachment)
-		{
-			switch (aFieldId)
-			{
-			case 1U: ReadPodTailField(aData, aSize, theAttachment, &Attachment::mEffectArray); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aData, aSize, [&](PortableSaveContext& c){ SyncAttachmentTailPortable(c, theAttachment); }); break;
-			default: break;
-			}
-		});
+	SyncDataArrayObjectsTLV(theContext, theBoard->mApp->mEffectSystem->mAttachmentHolder->mAttachments, SyncAttachmentTailPortable);
 }
 
 static void SyncCursorPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	if (theContext.mReading)
-	{
-		std::vector<unsigned char> aBlob;
-		if (!ReadTLVBlob(theContext, aBlob))
-			return;
-		TLVReader aReader(aBlob.data(), aBlob.size());
-		while (aReader.mOk && aReader.mPos < aReader.mSize)
-		{
-			uint32_t aFieldId = 0;
-			uint32_t aFieldSize = 0;
-			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
-				break;
-			const unsigned char* aFieldData = nullptr;
-			if (!aReader.ReadBytes(aFieldData, aFieldSize))
-				break;
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aFieldData, aFieldSize, *theBoard->mCursorObject); break;
-			case 2U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mCursorObject, &CursorObject::mSeedBankIndex); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncCursorObjectTailPortable(c, *theBoard->mCursorObject); }); break;
-			default: break;
-			}
-		}
-	}
-	else
-	{
-		std::vector<unsigned char> aBlob;
-		WriteGameObjectField(aBlob, 1U, *theBoard->mCursorObject);
-		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncCursorObjectTailPortable(c, *theBoard->mCursorObject); });
-		WriteTLVBlob(theContext, aBlob);
-	}
+	SyncSingleObjectTLV(theContext, *theBoard->mCursorObject, SyncCursorObjectTailPortable);
 }
 
 static void SyncCursorPreviewPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	if (theContext.mReading)
-	{
-		std::vector<unsigned char> aBlob;
-		if (!ReadTLVBlob(theContext, aBlob))
-			return;
-		TLVReader aReader(aBlob.data(), aBlob.size());
-		while (aReader.mOk && aReader.mPos < aReader.mSize)
-		{
-			uint32_t aFieldId = 0;
-			uint32_t aFieldSize = 0;
-			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
-				break;
-			const unsigned char* aFieldData = nullptr;
-			if (!aReader.ReadBytes(aFieldData, aFieldSize))
-				break;
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aFieldData, aFieldSize, *theBoard->mCursorPreview); break;
-			case 2U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mCursorPreview, &CursorPreview::mGridX); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncCursorPreviewTailPortable(c, *theBoard->mCursorPreview); }); break;
-			default: break;
-			}
-		}
-	}
-	else
-	{
-		std::vector<unsigned char> aBlob;
-		WriteGameObjectField(aBlob, 1U, *theBoard->mCursorPreview);
-		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncCursorPreviewTailPortable(c, *theBoard->mCursorPreview); });
-		WriteTLVBlob(theContext, aBlob);
-	}
+	SyncSingleObjectTLV(theContext, *theBoard->mCursorPreview, SyncCursorPreviewTailPortable);
 }
 
 static void SyncAdvicePortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	if (theContext.mReading)
-	{
-		std::vector<unsigned char> aBlob;
-		if (!ReadTLVBlob(theContext, aBlob))
-			return;
-		TLVReader aReader(aBlob.data(), aBlob.size());
-		while (aReader.mOk && aReader.mPos < aReader.mSize)
-		{
-			uint32_t aFieldId = 0;
-			uint32_t aFieldSize = 0;
-			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
-				break;
-			const unsigned char* aFieldData = nullptr;
-			if (!aReader.ReadBytes(aFieldData, aFieldSize))
-				break;
-			switch (aFieldId)
-			{
-			case 1U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mAdvice, &MessageWidget::mLabel); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncMessageWidgetTailPortable(c, *theBoard->mAdvice); }); break;
-			default: break;
-			}
-		}
-	}
-	else
-	{
-		std::vector<unsigned char> aBlob;
-		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncMessageWidgetTailPortable(c, *theBoard->mAdvice); });
-		WriteTLVBlob(theContext, aBlob);
-	}
+	SyncSingleObjectTLV(theContext, *theBoard->mAdvice, SyncMessageWidgetTailPortable);
 }
 
 static void SyncSeedBankPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	if (theContext.mReading)
-	{
-		std::vector<unsigned char> aBlob;
-		if (!ReadTLVBlob(theContext, aBlob))
-			return;
-		TLVReader aReader(aBlob.data(), aBlob.size());
-		while (aReader.mOk && aReader.mPos < aReader.mSize)
-		{
-			uint32_t aFieldId = 0;
-			uint32_t aFieldSize = 0;
-			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
-				break;
-			const unsigned char* aFieldData = nullptr;
-			if (!aReader.ReadBytes(aFieldData, aFieldSize))
-				break;
-			switch (aFieldId)
-			{
-			case 1U: ReadGameObjectField(aFieldData, aFieldSize, *theBoard->mSeedBank); break;
-			case 2U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mSeedBank, &SeedBank::mNumPackets); break; // legacy
-			case 3U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mSeedBank, &SeedBank::mCutSceneDarken); break; // legacy
-			case 4U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mSeedBank, &SeedBank::mConveyorBeltCounter); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncSeedBankTailPortable(c, *theBoard->mSeedBank); }); break;
-			default: break;
-			}
-		}
-	}
-	else
-	{
-		std::vector<unsigned char> aBlob;
-		WriteGameObjectField(aBlob, 1U, *theBoard->mSeedBank);
-		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncSeedBankTailPortable(c, *theBoard->mSeedBank); });
-		WriteTLVBlob(theContext, aBlob);
-	}
+	SyncSingleObjectTLV(theContext, *theBoard->mSeedBank, SyncSeedBankTailPortable);
 }
 
 static void SyncSeedPacketsPortable(PortableSaveContext& theContext, Board* theBoard)
@@ -2159,7 +1890,7 @@ static void SyncSeedPacketsPortable(PortableSaveContext& theContext, Board* theB
 		{
 			uint32_t aItemSize = 0;
 			theContext.SyncUInt32(aItemSize);
-			std::vector<unsigned char> aItemData;
+			std::vector<uint8_t> aItemData;
 			aItemData.resize(aItemSize);
 			if (aItemSize > 0)
 				theContext.SyncBytes(aItemData.data(), aItemSize);
@@ -2170,13 +1901,12 @@ static void SyncSeedPacketsPortable(PortableSaveContext& theContext, Board* theB
 				uint32_t aFieldSize = 0;
 				if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
 					break;
-				const unsigned char* aFieldData = nullptr;
+				const uint8_t* aFieldData = nullptr;
 				if (!aReader.ReadBytes(aFieldData, aFieldSize))
 					break;
 				switch (aFieldId)
 				{
 				case 1U: ReadGameObjectField(aFieldData, aFieldSize, theBoard->mSeedBank->mSeedPackets[i]); break;
-				case 2U: ReadPodTailField(aFieldData, aFieldSize, theBoard->mSeedBank->mSeedPackets[i], &SeedPacket::mRefreshCounter); break; // legacy
 				case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncSeedPacketTailPortable(c, theBoard->mSeedBank->mSeedPackets[i]); }); break;
 				default: break;
 				}
@@ -2184,7 +1914,7 @@ static void SyncSeedPacketsPortable(PortableSaveContext& theContext, Board* theB
 		}
 		else
 		{
-			std::vector<unsigned char> aItemData;
+			std::vector<uint8_t> aItemData;
 			WriteGameObjectField(aItemData, 1U, theBoard->mSeedBank->mSeedPackets[i]);
 			AppendFieldWithSync(aItemData, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncSeedPacketTailPortable(c, theBoard->mSeedBank->mSeedPackets[i]); });
 			uint32_t aItemSize = static_cast<uint32_t>(aItemData.size());
@@ -2197,68 +1927,12 @@ static void SyncSeedPacketsPortable(PortableSaveContext& theContext, Board* theB
 
 static void SyncChallengePortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	if (theContext.mReading)
-	{
-		std::vector<unsigned char> aBlob;
-		if (!ReadTLVBlob(theContext, aBlob))
-			return;
-		TLVReader aReader(aBlob.data(), aBlob.size());
-		while (aReader.mOk && aReader.mPos < aReader.mSize)
-		{
-			uint32_t aFieldId = 0;
-			uint32_t aFieldSize = 0;
-			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
-				break;
-			const unsigned char* aFieldData = nullptr;
-			if (!aReader.ReadBytes(aFieldData, aFieldSize))
-				break;
-			switch (aFieldId)
-			{
-			case 1U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mChallenge, &Challenge::mBeghouledMouseCapture); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncChallengeTailPortable(c, *theBoard->mChallenge); }); break;
-			default: break;
-			}
-		}
-	}
-	else
-	{
-		std::vector<unsigned char> aBlob;
-		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncChallengeTailPortable(c, *theBoard->mChallenge); });
-		WriteTLVBlob(theContext, aBlob);
-	}
+	SyncSingleObjectTLV(theContext, *theBoard->mChallenge, SyncChallengeTailPortable);
 }
 
 static void SyncMusicPortable(PortableSaveContext& theContext, Board* theBoard)
 {
-	if (theContext.mReading)
-	{
-		std::vector<unsigned char> aBlob;
-		if (!ReadTLVBlob(theContext, aBlob))
-			return;
-		TLVReader aReader(aBlob.data(), aBlob.size());
-		while (aReader.mOk && aReader.mPos < aReader.mSize)
-		{
-			uint32_t aFieldId = 0;
-			uint32_t aFieldSize = 0;
-			if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
-				break;
-			const unsigned char* aFieldData = nullptr;
-			if (!aReader.ReadBytes(aFieldData, aFieldSize))
-				break;
-			switch (aFieldId)
-			{
-			case 1U: ReadPodTailField(aFieldData, aFieldSize, *theBoard->mApp->mMusic, &Music::mCurMusicTune); break; // legacy
-			case PORTABLE_FIELD_TAIL: ApplyFieldWithSync(aFieldData, aFieldSize, [&](PortableSaveContext& c){ SyncMusicTailPortable(c, *theBoard->mApp->mMusic); }); break;
-			default: break;
-			}
-		}
-	}
-	else
-	{
-		std::vector<unsigned char> aBlob;
-		AppendFieldWithSync(aBlob, PORTABLE_FIELD_TAIL, [&](PortableSaveContext& c){ SyncMusicTailPortable(c, *theBoard->mApp->mMusic); });
-		WriteTLVBlob(theContext, aBlob);
-	}
+	SyncSingleObjectTLV(theContext, *theBoard->mApp->mMusic, SyncMusicTailPortable);
 }
 
 static void SyncBoardPortable(PortableSaveContext& theContext, Board* theBoard)
@@ -2337,7 +2011,7 @@ static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 	}
 }
 
-static bool WriteChunkV4(std::vector<unsigned char>& thePayload, uint32_t theChunkType, Board* theBoard)
+static bool WriteChunkV4(std::vector<uint8_t>& thePayload, uint32_t theChunkType, Board* theBoard)
 {
 	ChunkSyncFn aSyncFn = GetChunkSyncFn(theChunkType);
 	if (!aSyncFn)
@@ -2354,17 +2028,17 @@ static bool WriteChunkV4(std::vector<unsigned char>& thePayload, uint32_t theChu
 	aChunkWriter.OpenMemory(0x200);
 	aChunkWriter.WriteUInt32(SAVE4_CHUNK_VERSION);
 	aChunkWriter.WriteUInt32(1U);
-	aChunkWriter.WriteUInt32(static_cast<uint32_t>(aFieldWriter.GetDataLen()));
+	aChunkWriter.WriteUInt32(aFieldWriter.GetDataLen());
 	aChunkWriter.WriteBytes(aFieldWriter.GetDataPtr(), aFieldWriter.GetDataLen());
 
-	std::vector<unsigned char> aChunk;
+	std::vector<uint8_t> aChunk;
 	aChunk.resize(aChunkWriter.GetDataLen());
 	memcpy(aChunk.data(), aChunkWriter.GetDataPtr(), aChunkWriter.GetDataLen());
 	AppendChunk(thePayload, theChunkType, aChunk);
 	return true;
 }
 
-static bool ReadChunkV4(uint32_t theChunkType, const unsigned char* theData, size_t theSize, Board* theBoard)
+static bool ReadChunkV4(uint32_t theChunkType, const uint8_t* theData, size_t theSize, Board* theBoard)
 {
 	ChunkSyncFn aSyncFn = GetChunkSyncFn(theChunkType);
 	if (!aSyncFn)
@@ -2386,7 +2060,7 @@ static bool ReadChunkV4(uint32_t theChunkType, const unsigned char* theData, siz
 		uint32_t aFieldSize = 0;
 		if (!aReader.ReadU32(aFieldId) || !aReader.ReadU32(aFieldSize))
 			break;
-		const unsigned char* aFieldData = nullptr;
+		const uint8_t* aFieldData = nullptr;
 		if (!aReader.ReadBytes(aFieldData, aFieldSize))
 			break;
 
@@ -2408,16 +2082,14 @@ static bool ReadChunkV4(uint32_t theChunkType, const unsigned char* theData, siz
 static void FixBoardAfterLoad(Board* theBoard)
 {
 	{
-		Plant* aPlant = nullptr;
-		while (theBoard->mPlants.IterateNext(aPlant))
+		for (Plant* aPlant : theBoard->mPlants)
 		{
 			aPlant->mApp = theBoard->mApp;
 			aPlant->mBoard = theBoard;
 		}
 	}
 	{
-		Zombie* aZombie = nullptr;
-		while (theBoard->mZombies.IterateNext(aZombie))
+		for (Zombie* aZombie : theBoard->mZombies)
 		{
 			aZombie->mApp = theBoard->mApp;
 			aZombie->mBoard = theBoard;
@@ -2523,32 +2195,28 @@ static void FixBoardAfterLoad(Board* theBoard)
 		}
 	}
 	{
-		Projectile* aProjectile = nullptr;
-		while (theBoard->mProjectiles.IterateNext(aProjectile))
+		for (Projectile* aProjectile : theBoard->mProjectiles)
 		{
 			aProjectile->mApp = theBoard->mApp;
 			aProjectile->mBoard = theBoard;
 		}
 	}
 	{
-		Coin* aCoin = nullptr;
-		while (theBoard->mCoins.IterateNext(aCoin))
+		for (Coin* aCoin : theBoard->mCoins)
 		{
 			aCoin->mApp = theBoard->mApp;
 			aCoin->mBoard = theBoard;
 		}
 	}
 	{
-		LawnMower* aLawnMower = nullptr;
-		while (theBoard->mLawnMowers.IterateNext(aLawnMower))
+		for (LawnMower* aLawnMower : theBoard->mLawnMowers)
 		{
 			aLawnMower->mApp = theBoard->mApp;
 			aLawnMower->mBoard = theBoard;
 		}
 	}
 	{
-		GridItem* aGridItem = nullptr;
-		while (theBoard->mGridItems.IterateNext(aGridItem))
+		for (GridItem* aGridItem : theBoard->mGridItems)
 		{
 			aGridItem->mApp = theBoard->mApp;
 			aGridItem->mBoard = theBoard;
@@ -2570,7 +2238,7 @@ static void FixBoardAfterLoad(Board* theBoard)
 	theBoard->mChallenge->mApp = theBoard->mApp;
 	theBoard->mChallenge->mBoard = theBoard;
 	theBoard->mApp->mMusic->mApp = theBoard->mApp;
-	theBoard->mApp->mMusic->mMusicInterface = theBoard->mApp->mMusicInterface;
+	theBoard->mApp->mMusic->mMusicInterface = theBoard->mApp->mMusicInterface.get();
 }
 
 static bool LawnLoadGameV4(Board* theBoard, const std::string& theFilePath)
@@ -2593,7 +2261,7 @@ static bool LawnLoadGameV4(Board* theBoard, const std::string& theFilePath)
 	if (aHeader.mPayloadSize > static_cast<uint32_t>(aBuffer.GetDataLen()) - sizeof(SaveFileHeaderV4))
 		return false;
 
-	unsigned char* aPayload = (unsigned char*)aBuffer.GetDataPtr() + sizeof(SaveFileHeaderV4);
+	uint8_t* aPayload = (uint8_t*)aBuffer.GetDataPtr() + sizeof(SaveFileHeaderV4);
 	uint32_t aCrc = crc32(0, (Bytef*)aPayload, aHeader.mPayloadSize);
 	if (aCrc != aHeader.mPayloadCrc)
 		return false;
@@ -2606,7 +2274,7 @@ static bool LawnLoadGameV4(Board* theBoard, const std::string& theFilePath)
 		uint32_t aChunkSize = 0;
 		if (!aReader.ReadU32(aChunkType) || !aReader.ReadU32(aChunkSize))
 			break;
-		const unsigned char* aChunkData = nullptr;
+		const uint8_t* aChunkData = nullptr;
 		if (!aReader.ReadBytes(aChunkData, aChunkSize))
 			break;
 
@@ -2635,10 +2303,17 @@ public:
 public:
 	inline int		ByteLeftToRead() { return (mBuffer.mDataBitSize - mBuffer.mReadBitPos + 7) / 8; }
 	void			SyncBytes(void* theDest, int theReadSize);
-	void			SyncInt(int& theInt);
-	inline void		SyncUint(uint32_t& theInt) { SyncInt((signed int&)theInt); }
+	void			SyncInt32(int32_t& theInt32);
+	void			SyncUInt32(uint32_t& theUInt32);
+	inline void		SyncInt(int& theInt)
+	{
+		int32_t aValue = theInt;
+		SyncInt32(aValue);
+		if (mReading)
+			theInt = aValue;
+	}
 	void			SyncReanimationDef(ReanimatorDefinition*& theDefinition);
-	void			SyncParticleDef(TodParticleDefinition*& theDefinition);
+	void			SyncParticleDef(PvzpParticleDefinition*& theDefinition);
 	void			SyncTrailDef(TrailDefinition*& theDefinition);
 	void			SyncImage(Image*& theImage);
 };
@@ -2653,11 +2328,11 @@ void SaveGameContext::SyncBytes(void* theDest, int theReadSize)
 			mFailed = true;
 		}
 
-		aReadSize = mFailed ? 0 : mBuffer.ReadLong();
+		aReadSize = mFailed ? 0 : mBuffer.ReadInt32();
 	}
 	else
 	{
-		mBuffer.WriteLong(theReadSize);
+		mBuffer.WriteInt32(theReadSize);
 	}
 
 	if (mReading)
@@ -2673,16 +2348,16 @@ void SaveGameContext::SyncBytes(void* theDest, int theReadSize)
 		}
 		else
 		{
-			mBuffer.ReadBytes((uchar*)theDest, theReadSize);
+			mBuffer.ReadBytes((uint8_t*)theDest, theReadSize);
 		}
 	}
 	else
 	{
-		mBuffer.WriteBytes((uchar*)theDest, theReadSize);
+		mBuffer.WriteBytes((uint8_t*)theDest, theReadSize);
 	}
 }
 
-void SaveGameContext::SyncInt(int& theInt)
+void SaveGameContext::SyncInt32(int32_t& theInt32)
 {
 	if (mReading)
 	{
@@ -2691,11 +2366,28 @@ void SaveGameContext::SyncInt(int& theInt)
 			mFailed = true;
 		}
 
-		theInt = mFailed ? 0 : mBuffer.ReadLong();
+		theInt32 = mFailed ? 0 : mBuffer.ReadInt32();
 	}
 	else
 	{
-		mBuffer.WriteLong(theInt);
+		mBuffer.WriteInt32(theInt32);
+	}
+}
+
+void SaveGameContext::SyncUInt32(uint32_t& theUInt32)
+{
+	if (mReading)
+	{
+		if (ByteLeftToRead() < 4)
+		{
+			mFailed = true;
+		}
+
+		theUInt32 = mFailed ? 0 : mBuffer.ReadUInt32();
+	}
+	else
+	{
+		mBuffer.WriteUInt32(theUInt32);
 	}
 }
 
@@ -2735,7 +2427,7 @@ void SaveGameContext::SyncReanimationDef(ReanimatorDefinition*& theDefinition)
 	}
 }
 
-void SaveGameContext::SyncParticleDef(TodParticleDefinition*& theDefinition)
+void SaveGameContext::SyncParticleDef(PvzpParticleDefinition*& theDefinition)
 {
 	if (mReading)
 	{
@@ -2759,7 +2451,7 @@ void SaveGameContext::SyncParticleDef(TodParticleDefinition*& theDefinition)
 		int aParticleType = static_cast<int>(ParticleEffect::PARTICLE_NONE);
 		for (int i = 0; i < static_cast<int>(ParticleEffect::NUM_PARTICLES); i++)
 		{
-			TodParticleDefinition* aDef = &gParticleDefArray[i];
+			PvzpParticleDefinition* aDef = &gParticleDefArray[i];
 			if (theDefinition == aDef)
 			{
 				aParticleType = i;
@@ -2835,7 +2527,7 @@ void SaveGameContext::SyncImage(Image*& theImage)
 	}
 }
 
-static void SyncDataIDList(TodList<uint32_t>* theDataIDList, SaveGameContext& theContext, TodAllocator* theAllocator)
+static void SyncDataIDList(PvzpList<uint32_t>* theDataIDList, SaveGameContext& theContext, PvzpAllocator* theAllocator)
 {
 	try
 	{
@@ -2862,7 +2554,7 @@ static void SyncDataIDList(TodList<uint32_t>* theDataIDList, SaveGameContext& th
 		{
 			int aCount = theDataIDList->mSize;
 			theContext.SyncInt(aCount);
-			for (TodListNode<uint32_t>* aNode = theDataIDList->mHead; aNode != nullptr; aNode = aNode->mNext)
+			for (PvzpListNode<uint32_t>* aNode = theDataIDList->mHead; aNode != nullptr; aNode = aNode->mNext)
 			{
 				uint32_t aDataID = aNode->mValue;
 				theContext.SyncBytes(&aDataID, sizeof(aDataID));
@@ -2875,7 +2567,7 @@ static void SyncDataIDList(TodList<uint32_t>* theDataIDList, SaveGameContext& th
 	}
 }
 
-static void SyncParticleEmitter(TodParticleSystem* theParticleSystem, TodParticleEmitter* theParticleEmitter, SaveGameContext& theContext)
+static void SyncParticleEmitter(PvzpParticleSystem* theParticleSystem, PvzpParticleEmitter* theParticleEmitter, SaveGameContext& theContext)
 {
 	int aEmitterDefIndex = 0;
 	if (theContext.mReading)
@@ -2887,15 +2579,15 @@ static void SyncParticleEmitter(TodParticleSystem* theParticleSystem, TodParticl
 	else
 	{
 		aEmitterDefIndex = (reinterpret_cast<intptr_t>(theParticleEmitter->mEmitterDef) -
-			reinterpret_cast<intptr_t>(theParticleSystem->mParticleDef->mEmitterDefs)) / sizeof(TodEmitterDefinition);
+			reinterpret_cast<intptr_t>(theParticleSystem->mParticleDef->mEmitterDefs)) / sizeof(PvzpEmitterDefinition);
 		theContext.SyncInt(aEmitterDefIndex);
 	}
 
 	theContext.SyncImage(theParticleEmitter->mImageOverride);
-	SyncDataIDList((TodList<uint32_t>*)&theParticleEmitter->mParticleList, theContext, &theParticleSystem->mParticleHolder->mParticleListNodeAllocator);
-	for (TodListNode<ParticleID>* aNode = theParticleEmitter->mParticleList.mHead; aNode != nullptr; aNode = aNode->mNext)
+	SyncDataIDList((PvzpList<uint32_t>*)&theParticleEmitter->mParticleList, theContext, &theParticleSystem->mParticleHolder->mParticleListNodeAllocator);
+	for (PvzpListNode<ParticleID>* aNode = theParticleEmitter->mParticleList.mHead; aNode != nullptr; aNode = aNode->mNext)
 	{
-		TodParticle* aParticle = theParticleSystem->mParticleHolder->mParticles.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
+		PvzpParticle* aParticle = theParticleSystem->mParticleHolder->mParticles.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
 		if (theContext.mReading)
 		{
 			aParticle->mParticleEmitter = theParticleEmitter;
@@ -2903,7 +2595,7 @@ static void SyncParticleEmitter(TodParticleSystem* theParticleSystem, TodParticl
 	}
 }
 
-static void SyncParticleSystem(Board* theBoard, TodParticleSystem* theParticleSystem, SaveGameContext& theContext)
+static void SyncParticleSystem(Board* theBoard, PvzpParticleSystem* theParticleSystem, SaveGameContext& theContext)
 {
 	theContext.SyncParticleDef(theParticleSystem->mParticleDef);
 	if (theContext.mReading)
@@ -2911,10 +2603,10 @@ static void SyncParticleSystem(Board* theBoard, TodParticleSystem* theParticleSy
 		theParticleSystem->mParticleHolder = theBoard->mApp->mEffectSystem->mParticleHolder.get();
 	}
 
-	SyncDataIDList((TodList<uint32_t>*)&theParticleSystem->mEmitterList, theContext, &theParticleSystem->mParticleHolder->mEmitterListNodeAllocator);
-	for (TodListNode<ParticleEmitterID>* aNode = theParticleSystem->mEmitterList.mHead; aNode != nullptr; aNode = aNode->mNext)
+	SyncDataIDList((PvzpList<uint32_t>*)&theParticleSystem->mEmitterList, theContext, &theParticleSystem->mParticleHolder->mEmitterListNodeAllocator);
+	for (PvzpListNode<ParticleEmitterID>* aNode = theParticleSystem->mEmitterList.mHead; aNode != nullptr; aNode = aNode->mNext)
 	{
-		TodParticleEmitter* aEmitter = theParticleSystem->mParticleHolder->mEmitters.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
+		PvzpParticleEmitter* aEmitter = theParticleSystem->mParticleHolder->mEmitters.DataArrayGet(static_cast<uint32_t>(aNode->mValue));
 		SyncParticleEmitter(theParticleSystem, aEmitter, theContext);
 	}
 }
@@ -2944,14 +2636,14 @@ static void SyncReanimation(Board* theBoard, Reanimation* theReanimation, SaveGa
 			if (theContext.mReading)
 			{
 				aTrackInstance.mBlendTransform.mText = "";
-				TOD_ASSERT(aTrackInstance.mBlendTransform.mFont == nullptr);
-				TOD_ASSERT(aTrackInstance.mBlendTransform.mImage == nullptr);
+				PVZP_ASSERT(aTrackInstance.mBlendTransform.mFont == nullptr);
+				PVZP_ASSERT(aTrackInstance.mBlendTransform.mImage == nullptr);
 			}
 			else
 			{
-				TOD_ASSERT(aTrackInstance.mBlendTransform.mText[0] == 0);
-				TOD_ASSERT(aTrackInstance.mBlendTransform.mFont == nullptr);
-				TOD_ASSERT(aTrackInstance.mBlendTransform.mImage == nullptr);
+				PVZP_ASSERT(aTrackInstance.mBlendTransform.mText[0] == 0);
+				PVZP_ASSERT(aTrackInstance.mBlendTransform.mFont == nullptr);
+				PVZP_ASSERT(aTrackInstance.mBlendTransform.mImage == nullptr);
 			}
 		}
 	}
@@ -2966,17 +2658,43 @@ static void SyncTrail(Board* theBoard, Trail* theTrail, SaveGameContext& theCont
 	}
 }
 
+template <typename T>
+struct LegacyDataArrayItem
+{
+	alignas(T) uint8_t mItem[sizeof(T)];
+	unsigned int mID;
+};
+
 template <typename T> inline static void SyncDataArray(SaveGameContext& theContext, DataArray<T>& theDataArray)
 {
-	theContext.SyncUint(theDataArray.mFreeListHead);
-	theContext.SyncUint(theDataArray.mMaxUsedCount);
-	theContext.SyncUint(theDataArray.mSize);
-	theContext.SyncBytes(theDataArray.mBlock, theDataArray.mMaxUsedCount * sizeof(*theDataArray.mBlock));
+	theContext.SyncUInt32(theDataArray.mFreeListHead);
+	theContext.SyncUInt32(theDataArray.mMaxUsedCount);
+	theContext.SyncUInt32(theDataArray.mSize);
+	auto aBlock = std::make_unique<LegacyDataArrayItem<T>[]>(theDataArray.mMaxUsedCount);
+	if (!theContext.mReading)
+	{
+		for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
+		{
+			auto& aSlot = aBlock[i];
+			std::copy_n(reinterpret_cast<uint8_t*>(&theDataArray.DataArrayGetItemAt(i)), sizeof(T), aSlot.mItem);
+			aSlot.mID = theDataArray.DataArrayGetIDAt(i);
+		}
+	}
+	theContext.SyncBytes(aBlock.get(), theDataArray.mMaxUsedCount * sizeof(aBlock[0]));
+	if (!theContext.mReading)
+		return;
+
+	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
+	{
+		auto& aSlot = aBlock[i];
+		theDataArray.DataArrayGetIDAt(i) = aSlot.mID;
+		if (aSlot.mID & DATA_ARRAY_KEY_MASK)
+			std::copy_n(aSlot.mItem, sizeof(T), reinterpret_cast<uint8_t*>(&theDataArray.DataArrayGetItemAt(i)));
+	}
 }
 
 static void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 {
-	// TODO test if gives sane results
 	size_t offset = size_t(&theBoard->mPaused) - size_t(theBoard);
 	theContext.SyncBytes(&theBoard->mPaused, sizeof(Board) - offset);
 
@@ -2994,34 +2712,31 @@ static void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mAttachmentHolder->mAttachments);
 
 	{
-		TodParticleSystem* aParticle = nullptr;
-		while (theBoard->mApp->mEffectSystem->mParticleHolder->mParticleSystems.IterateNext(aParticle))
+		for (PvzpParticleSystem* aParticle : theBoard->mApp->mEffectSystem->mParticleHolder->mParticleSystems)
 		{
 			SyncParticleSystem(theBoard, aParticle, theContext);
 		}
 	}
 	{
-		Reanimation* aReanimation = nullptr;
-		while (theBoard->mApp->mEffectSystem->mReanimationHolder->mReanimations.IterateNext(aReanimation))
+		for (Reanimation* aReanimation : theBoard->mApp->mEffectSystem->mReanimationHolder->mReanimations)
 		{
 			SyncReanimation(theBoard, aReanimation, theContext);
 		}
 	}
 	{
-		Trail* aTrail = nullptr;
-		while (theBoard->mApp->mEffectSystem->mTrailHolder->mTrails.IterateNext(aTrail))
+		for (Trail* aTrail : theBoard->mApp->mEffectSystem->mTrailHolder->mTrails)
 		{
 			SyncTrail(theBoard, aTrail, theContext);
 		}
 	}
 
-	theContext.SyncBytes(theBoard->mCursorObject, sizeof(CursorObject));
-	theContext.SyncBytes(theBoard->mCursorPreview, sizeof(CursorPreview));
-	theContext.SyncBytes(theBoard->mAdvice, sizeof(MessageWidget));
-	theContext.SyncBytes(theBoard->mSeedBank, sizeof(SeedBank));
-	theContext.SyncBytes(theBoard->mChallenge, sizeof(Challenge));
-	theContext.SyncBytes(theBoard->mApp->mMusic, sizeof(Music));
-	
+	theContext.SyncBytes(theBoard->mCursorObject.get(), sizeof(CursorObject));
+	theContext.SyncBytes(theBoard->mCursorPreview.get(), sizeof(CursorPreview));
+	theContext.SyncBytes(theBoard->mAdvice.get(), sizeof(MessageWidget));
+	theContext.SyncBytes(theBoard->mSeedBank.get(), sizeof(SeedBank));
+	theContext.SyncBytes(theBoard->mChallenge.get(), sizeof(Challenge));
+	theContext.SyncBytes(theBoard->mApp->mMusic.get(), sizeof(Music));
+
 	if (theContext.mReading)
 	{
 		if (theContext.ByteLeftToRead() < 4)
@@ -3029,23 +2744,22 @@ static void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 			theContext.mFailed = true;
 		}
 
-		if (theContext.mFailed || static_cast<uint32_t>(theContext.mBuffer.ReadLong()) != SAVE_FILE_MAGIC_NUMBER)
+		if (theContext.mFailed || theContext.mBuffer.ReadUInt32() != SAVE_FILE_MAGIC_NUMBER)
 		{
 			theContext.mFailed = true;
 		}
 	}
 	else
 	{
-		theContext.mBuffer.WriteLong(SAVE_FILE_MAGIC_NUMBER);
+		theContext.mBuffer.WriteUInt32(SAVE_FILE_MAGIC_NUMBER);
 	}
 }
 
-// GOTY @Patoke: 0x48CBC0
 bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 {
 	if (LawnLoadGameV4(theBoard, theFilePath))
 	{
-		TodTrace("Loaded save game (v4)");
+		PvzpLogLn("Loaded save game (v4)");
 		return true;
 	}
 
@@ -3070,7 +2784,7 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 		return false;
 	}
 
-	TodTrace("Loaded save game (legacy)");
+	PvzpLogLn("Loaded save game (legacy)");
 	FixBoardAfterLoad(theBoard);
 	theBoard->mApp->mGameScene = GameScenes::SCENE_PLAYING;
 	return true;
@@ -3078,7 +2792,7 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 
 bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 {
-	std::vector<unsigned char> aPayload;
+	std::vector<uint8_t> aPayload;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_BOARD_BASE, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIES, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_PLANTS, theBoard)) return false;
@@ -3106,7 +2820,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	aHeader.mPayloadSize = ToLE32(static_cast<uint32_t>(aPayload.size()));
 	aHeader.mPayloadCrc = ToLE32(crc32(0, reinterpret_cast<Bytef*>(aPayload.data()), static_cast<uint32_t>(aPayload.size())));
 
-	std::vector<unsigned char> aOutBuffer;
+	std::vector<uint8_t> aOutBuffer;
 	aOutBuffer.resize(sizeof(aHeader) + aPayload.size());
 	memcpy(aOutBuffer.data(), &aHeader, sizeof(aHeader));
 	memcpy(aOutBuffer.data() + sizeof(aHeader), aPayload.data(), aPayload.size());

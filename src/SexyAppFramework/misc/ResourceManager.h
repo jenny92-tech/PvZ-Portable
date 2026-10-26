@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -29,6 +29,7 @@
 #include "graphics/Image.h"
 #include "SexyAppBase.h"
 #include "XMLParser.h"
+#include <memory>
 #include <string>
 #include <map>
 
@@ -47,11 +48,9 @@ class SoundInstance;
 class SexyAppBase;
 class _Font;
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 class ResourceManager
 {
-public: // @Patoke todo: revert to protected
+public: // TODO: revert to protected
 	enum ResType
 	{
 		ResType_Image,
@@ -87,7 +86,7 @@ public: // @Patoke todo: revert to protected
 		bool mPurgeBits;
 		bool mMinimizeSubdivisions;
 		int mRows;
-		int mCols;	
+		int mCols;
 		uint32_t mAlphaColor;
 		AnimInfo mAnimInfo;
 
@@ -107,8 +106,8 @@ public: // @Patoke todo: revert to protected
 
 	struct FontRes : public BaseRes
 	{
-		_Font *mFont;
-		Image *mImage;
+		std::unique_ptr<_Font> mFont;
+		std::unique_ptr<Image> mImage;
 		std::string mImagePath;
 		std::string mTags;
 
@@ -121,11 +120,11 @@ public: // @Patoke todo: revert to protected
 		int mSize;
 
 
-		FontRes() { mType = ResType_Font; }
+		FontRes();
 		void         DeleteResource() override;
 	};
 
-	typedef std::map<std::string,BaseRes*> ResMap;
+	typedef std::map<std::string,std::unique_ptr<BaseRes>> ResMap;
 	typedef std::list<BaseRes*> ResList;
 	typedef std::map<std::string,ResList,StringLessNoCase> ResGroupMap;
 
@@ -135,7 +134,7 @@ public: // @Patoke todo: revert to protected
 	ResMap					mSoundMap;
 	ResMap					mFontMap;
 
-	XMLParser*				mXMLParser;
+	std::unique_ptr<XMLParser>	mXMLParser;
 	std::string				mError;
 	bool					mHasFailed;
 	SexyAppBase*			mApp;
@@ -153,7 +152,7 @@ public: // @Patoke todo: revert to protected
 
 	bool					Fail(const std::string& theErrorText);
 
-	virtual bool			ParseCommonResource(XMLElement &theElement, BaseRes *theRes, ResMap &theMap);
+	virtual bool			ParseCommonResource(XMLElement &theElement, std::unique_ptr<BaseRes> &theRes, ResMap &theMap);
 	virtual bool			ParseSoundResource(XMLElement &theElement);
 	virtual bool			ParseImageResource(XMLElement &theElement);
 	virtual bool			ParseFontResource(XMLElement &theElement);
@@ -209,7 +208,7 @@ public:
 	SharedImageRef			GetImage(const std::string &theId);
 	intptr_t					GetSound(const std::string &theId);
 	_Font*					GetFont(const std::string &theId);
-	
+
 	// Returns all the XML attributes associated with the image
 	const XMLParamMap&		GetImageAttributes(const std::string &theId);
 
@@ -229,8 +228,6 @@ public:
 	void					DumpCurResGroup(std::string& theDestStr);
 };
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 struct ResourceManagerException : public std::exception
 {
 	std::string what;

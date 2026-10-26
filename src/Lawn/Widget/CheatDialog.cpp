@@ -27,6 +27,8 @@
 #include "../../GameConstants.h"
 #include "../System/PlayerInfo.h"
 #include "widget/WidgetManager.h"
+#include <algorithm>
+#include <format>
 
 CheatDialog::CheatDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_CHEAT, true, "CHEAT", "Enter New Level:", "", Dialog::BUTTONS_OK_CANCEL)
 {
@@ -39,11 +41,11 @@ CheatDialog::CheatDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_C
 	std::string aCheatStr;
 	if (mApp->mGameMode != GameMode::GAMEMODE_ADVENTURE)
 	{
-		aCheatStr = StrFormat("C%d", static_cast<int>(mApp->mGameMode));
+		aCheatStr = std::format("C{}", static_cast<int>(mApp->mGameMode));
 	}
 	else if (mApp->HasFinishedAdventure())
 	{
-		aCheatStr = StrFormat("F%s", mApp->GetStageString(mApp->mPlayerInfo->GetLevel()).c_str());
+		aCheatStr = std::format("F{}", mApp->GetStageString(mApp->mPlayerInfo->GetLevel()));
 	}
 	else
 	{
@@ -54,10 +56,7 @@ CheatDialog::CheatDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_C
 	CalcSize(110, 40);
 }
 
-CheatDialog::~CheatDialog()
-{
-	delete mLevelEditWidget;
-}
+CheatDialog::~CheatDialog() = default;
 
 int CheatDialog::GetPreferredHeight(int theWidth)
 {
@@ -73,41 +72,39 @@ void CheatDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 void CheatDialog::AddedToManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::AddedToManager(theWidgetManager);
-	AddWidget(mLevelEditWidget);
-	theWidgetManager->SetFocus(mLevelEditWidget);
+	AddWidget(mLevelEditWidget.get());
+	theWidgetManager->SetFocus(mLevelEditWidget.get());
 }
 
 void CheatDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::RemovedFromManager(theWidgetManager);
-	RemoveWidget(mLevelEditWidget);
+	RemoveWidget(mLevelEditWidget.get());
 }
 
 void CheatDialog::Draw(Graphics* g)
 {
 	LawnDialog::Draw(g);
-	DrawEditBox(g, mLevelEditWidget);
+	DrawEditBox(g, mLevelEditWidget.get());
 }
 
-void CheatDialog::EditWidgetText(int theId, const std::string& theString)
+void CheatDialog::EditWidgetText([[maybe_unused]] int theId, [[maybe_unused]] const std::string& theString)
 {
-	(void)theId;(void)theString;
 	mApp->ButtonDepress(mId + 2000);
 }
 
-bool CheatDialog::AllowChar(int theId, char theChar)
+bool CheatDialog::AllowChar([[maybe_unused]] int theId, char theChar)
 {
-	(void)theId;
 	return isdigit(theChar) || theChar == '-' || theChar == 'c' || theChar == 'C' || theChar == 'f' || theChar == 'F';
 }
 
 bool CheatDialog::ApplyCheat()
 {
 	int aChallengeIndex;
-	if (sscanf(mLevelEditWidget->mString.c_str(), "c%d", &aChallengeIndex) == 1 || 
+	if (sscanf(mLevelEditWidget->mString.c_str(), "c%d", &aChallengeIndex) == 1 ||
 		sscanf(mLevelEditWidget->mString.c_str(), "C%d", &aChallengeIndex) == 1)
 	{
-		mApp->mGameMode = (GameMode)ClampInt(aChallengeIndex, 0, NUM_CHALLENGE_MODES);
+		mApp->mGameMode = (GameMode)std::clamp(aChallengeIndex, 0, NUM_CHALLENGE_MODES);
 		return true;
 	}
 
@@ -136,11 +133,11 @@ bool CheatDialog::ApplyCheat()
 	if (aLevel <= 0)
 	{
 		mApp->DoDialog(
-			Dialogs::DIALOG_CHEATERROR, 
-			true, 
-			"Enter Level", 
-			"Invalid Level. Do 'number' or 'area-subarea' or 'Cnumber' or 'Farea-subarea'.", 
-			"[DIALOG_BUTTON_OK]", 
+			Dialogs::DIALOG_CHEATERROR,
+			true,
+			"Enter Level",
+			"Invalid Level. Do 'number' or 'area-subarea' or 'Cnumber' or 'Farea-subarea'.",
+			"[DIALOG_BUTTON_OK]",
 			Dialog::BUTTONS_FOOTER
 		);
 		return false;

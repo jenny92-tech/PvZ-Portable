@@ -22,6 +22,9 @@
 #ifndef __TITLESCREEN_H__
 #define __TITLESCREEN_H__
 
+#include <atomic>
+#include <memory>
+
 #include "widget/Widget.h"
 #include "widget/ButtonListener.h"
 
@@ -52,7 +55,7 @@ public:
 	};
 
 public:
-	HyperlinkWidget*		mStartButton;
+	std::unique_ptr<HyperlinkWidget>		mStartButton;
 	float					mCurBarWidth;
 	float					mTotalBarWidth;
 	float					mBarVel;
@@ -70,7 +73,7 @@ public:
 	int						mTitleStateCounter;
 	int						mTitleStateDuration;
 	bool					mDisplayPartnerLogo;
-	bool					mLoaderScreenIsLoaded;
+	std::atomic<bool>		mLoaderScreenIsLoaded;
 	LawnApp*				mApp;
 
 public:

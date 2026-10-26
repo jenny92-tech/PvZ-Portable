@@ -3,8 +3,7 @@
 #
 # Prerequisites:
 #   - Emscripten SDK (emsdk) installed and activated
-#   - libopenmpt must be pre-built for Emscripten (no Emscripten port exists);
-#     other audio codecs (ogg, vorbis, mpg123) are provided via Emscripten ports.
+#   - libopenmpt must be pre-built for Emscripten (no Emscripten port exists)
 #
 # Usage:
 #   source /path/to/emsdk/emsdk_env.sh
@@ -17,7 +16,7 @@
 #   build-wasm/pvz-portable.wasm  — WebAssembly binary
 #
 # To serve locally:
-#   cd build-wasm && python3 -m http.server 8080 --bind 127.0.0.1
+#   python3 -m http.server 8080 --directory build-wasm
 #   Then open http://localhost:8080/pvz-portable.html
 
 set -euo pipefail
@@ -88,5 +87,5 @@ echo "  ${BUILD_DIR}/pvz-portable.js"
 echo "  ${BUILD_DIR}/pvz-portable.wasm"
 echo ""
 echo "To test locally:"
-echo "  cd ${BUILD_DIR} && python3 -m http.server 8080"
+echo "  python3 -m http.server 8080 --directory ${BUILD_DIR}"
 echo "  Then open http://localhost:8080/pvz-portable.html"

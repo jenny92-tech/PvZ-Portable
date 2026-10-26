@@ -19,7 +19,6 @@
  * along with PvZ-Portable. If not, see <https://www.gnu.org/licenses/>.
  */
 
-// @Patoke: implement file
 #include "AchievementsScreen.h"
 #include "../Board.h"
 #include "GameButton.h"
@@ -31,11 +30,11 @@
 #include "../../GameConstants.h"
 #include "../System/PlayerInfo.h"
 #include "../System/ProfileMgr.h"
-#include "../../Sexy.TodLib/TodFoley.h"
-#include "../../Sexy.TodLib/TodDebug.h"
+#include "../../PvzpLib/PvzpFoley.h"
+#include "../../PvzpLib/PvzpDebug.h"
 #include "graphics/Font.h"
-#include "../../Sexy.TodLib/Reanimator.h"
-#include "../../Sexy.TodLib/TodParticle.h"
+#include "../../PvzpLib/Reanimator.h"
+#include "../../PvzpLib/PvzpParticle.h"
 #include "widget/Dialog.h"
 #include "widget/WidgetManager.h"
 
@@ -64,7 +63,6 @@ constinit const AchievementItem gAchievementList[MAX_ACHIEVEMENTS] = {
 	{ "Mustache Mode", "Enable Mustache Mode" }
 };
 
-// GOTY @Patoke: 0x401000
 AchievementsWidget::AchievementsWidget(LawnApp* theApp) {
 	mApp = theApp;
 	mWidth = 800;
@@ -77,12 +75,10 @@ AchievementsWidget::AchievementsWidget(LawnApp* theApp) {
 	mMoreRockRect = Rect(710, 470, IMAGE_ACHEESEMENTS_MORE_ROCK->mWidth - 25, IMAGE_ACHEESEMENTS_MORE_ROCK->mHeight - 50);
 }
 
-// GOTY @Patoke: 0x4010E0
 AchievementsWidget::~AchievementsWidget() {
 
 }
 
-// GOTY @Patoke: 0x401A10
 void AchievementsWidget::Update() {
 	MarkDirty();
 	if (mScrollValue <= 0)
@@ -109,7 +105,6 @@ void AchievementsWidget::Update() {
 	mScrollValue = std::max(mScrollValue, 0);
 }
 
-// GOTY @Patoke: 0x401160
 void AchievementsWidget::Draw(Graphics* g) {
 	g->DrawImage(IMAGE_SELECTORSCREEN_ACHIEVEMENTS_BG, 0, 0);
 
@@ -125,7 +120,7 @@ void AchievementsWidget::Draw(Graphics* g) {
 	g->DrawImage(IMAGE_ACHEESEMENTS_ZUMA, 0, 11250);
 
 	g->DrawImage(IMAGE_ACHEESEMENTS_CHINA, 0, mHeight - IMAGE_ACHEESEMENTS_CHINA->mHeight - /*50*/ 650);
-	
+
 	if (aBackButtonRect.Contains(mWidgetManager->mLastMouseX - mX, mWidgetManager->mLastMouseY - mY))
 		g->DrawImage(IMAGE_ACHEESEMENTS_BACK_HIGHLIGHT, 128, 55);
 
@@ -143,13 +138,13 @@ void AchievementsWidget::Draw(Graphics* g) {
 		// Achievement images
 		Rect aSrcRect(70 * (i % 7), 70 * (i / 7), 70, 70);
 		Rect aDestRect(aImageXPos, aImageYPos, 56, 56);
-		
+
 		g->SetColorizeImages(true);
 		g->SetColor(aHasAchievement ? Color(255, 255, 255) : Color(255, 255, 255, 32));
 
 		g->DrawImage(IMAGE_ACHEESEMENTS_ICONS, aDestRect, aSrcRect);
 		g->SetColorizeImages(false);
-		
+
 		// Achievement titles
 		g->SetFont(FONT_DWARVENTODCRAFT15);
 		g->SetColor(Color(21, 175, 0));
@@ -157,9 +152,9 @@ void AchievementsWidget::Draw(Graphics* g) {
 		std::string aName = mApp->GetString(gAchievementList[i].name, gAchievementList[i].name);
 		g->DrawString(aName, aTextXPos, aTextYPos);
 
-		// Achievement descriptions	
+		// Achievement descriptions
 		Rect aPos = Rect(aTextXPos, aTextYPos + 3, 212, 60);
-		
+
 		g->SetFont(FONT_DWARVENTODCRAFT12);
 		g->SetColor(Color(255, 255, 255));
 
@@ -178,7 +173,6 @@ void AchievementsWidget::Draw(Graphics* g) {
 	}
 }
 
-// GOTY @Patoke: 0x4019D0
 void AchievementsWidget::KeyDown(KeyCode theKey) {
 	if (theKey == KEYCODE_UP) {
 		mScrollValue = mDefaultScrollValue;
@@ -190,13 +184,11 @@ void AchievementsWidget::KeyDown(KeyCode theKey) {
 	}
 	else if (theKey == KEYCODE_ESCAPE) {
 		mApp->mGameSelector->SlideTo(0, 0);
-		mApp->mGameSelector->mWidgetManager->SetFocus(mApp->mGameSelector);
+		mApp->mGameSelector->mWidgetManager->SetFocus(mApp->mGameSelector.get());
 	}
 }
 
-// GOTY @Patoke: 0x4017F0
-void AchievementsWidget::MouseDown(int x, int y, int theClickCount) {
-	(void)theClickCount;
+void AchievementsWidget::MouseDown(int x, int y, [[maybe_unused]] int theClickCount) {
 	if (aBackButtonRect.Contains(x, y))
 		mApp->PlaySample(SOUND_GRAVEBUTTON);
 
@@ -204,12 +196,11 @@ void AchievementsWidget::MouseDown(int x, int y, int theClickCount) {
 		mApp->PlaySample(SOUND_GRAVEBUTTON);
 }
 
-// GOTY @Patoke: 0x401890
-void AchievementsWidget::MouseUp(int x, int y, int theClickCount) {
+void AchievementsWidget::MouseUp(int x, int y, [[maybe_unused]] int theClickCount) {
 	Point aPos = Point(x, y);
 	if (aBackButtonRect.Contains(aPos)) {
 		mApp->mGameSelector->SlideTo(0, 0);
-		mApp->mGameSelector->mWidgetManager->SetFocus(mApp->mGameSelector);
+		mApp->mGameSelector->mWidgetManager->SetFocus(mApp->mGameSelector.get());
 	}
 
 	if (mMoreRockRect.Contains(aPos)) {
@@ -217,11 +208,8 @@ void AchievementsWidget::MouseUp(int x, int y, int theClickCount) {
 		mScrollDirection = mDidPressMoreButton ? -1 : 1;
 		mScrollValue = 20;
 	}
-
-	(void)theClickCount;
 }
 
-// GOTY @Patoke: 0x4019A0
 void AchievementsWidget::MouseWheel(int theDelta) {
 	mScrollValue = mDefaultScrollValue;
 
@@ -231,9 +219,7 @@ void AchievementsWidget::MouseWheel(int theDelta) {
 		mScrollDirection = -1;
 }
 
-// GOTY @Patoke: 0x459670
 void ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, bool theForceGive) {
-	// todo @Patoke: finish adding the achievement give events
 	if (!theApp->mPlayerInfo)
 		return;
 
@@ -246,8 +232,7 @@ void ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, boo
 		return;
 
 	std::string aAchievementName = theApp->GetString(gAchievementList[theAchievement].name, gAchievementList[theAchievement].name);
-	std::string aFormat = theApp->GetString("%s Achievement!", "%s Achievement!");
-	std::string aMessage = Sexy::StrFormat(aFormat.c_str(), aAchievementName.c_str());
+	std::string aMessage = theApp->GetFormattedString("%s Achievement!", "%s Achievement!", aAchievementName.c_str());
 
 	if (theApp->mBoard) {
 		theApp->mBoard->DisplayAdvice(aMessage, MESSAGE_STYLE_ACHIEVEMENT, AdviceType::ADVICE_NONE);
@@ -256,7 +241,6 @@ void ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, boo
 	}
 }
 
-// GOTY @Patoke: 0x44D5B0
 void ReportAchievement::AchievementInitForPlayer(LawnApp* theApp) {
 	if (!theApp || !theApp->mPlayerInfo)
 		return;

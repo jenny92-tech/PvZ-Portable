@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -30,8 +30,6 @@
 namespace Sexy
 {
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 class TriVertex
 {
 public:
@@ -39,7 +37,7 @@ public:
 	uint32_t color; //ARGB (0 = use color specified in function call)
 
 public:
-	TriVertex() { color = 0; }
+	TriVertex() = default;
 	TriVertex(float theX, float theY) : x(theX), y(theY) { color = 0; }
 	TriVertex(float theX, float theY, float theU, float theV) : x(theX), y(theY), u(theU), v(theV) { color = 0; }
 	TriVertex(float theX, float theY, float theU, float theV, uint32_t theColor) : x(theX), y(theY), u(theU), v(theV), color(theColor) { }

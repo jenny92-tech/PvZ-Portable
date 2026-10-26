@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -25,6 +25,9 @@
 #include <SDL.h>
 #include <emscripten.h>
 #include <emscripten/html5.h>
+
+#include <memory>
+#include <type_traits>
 
 #include "SexyAppBase.h"
 #include "graphics/GLInterface.h"
@@ -56,30 +59,35 @@ void SexyAppBase::MakeWindow()
 		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
 
-		mWindow = (void*)SDL_CreateWindow(
+		using WindowPtr = std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)>;
+		using GLContextPtr = std::unique_ptr<std::remove_pointer_t<SDL_GLContext>, decltype(&SDL_GL_DeleteContext)>;
+
+		WindowPtr window(SDL_CreateWindow(
 			mTitle.c_str(),
 			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-			mWidth * IMG_DOWNSCALE, mHeight * IMG_DOWNSCALE, winFlags);
+			mWidth, mHeight, winFlags), &SDL_DestroyWindow);
+		GLContextPtr context(nullptr, &SDL_GL_DeleteContext);
 
-		if (mWindow)
-			mContext = (void*)SDL_GL_CreateContext((SDL_Window*)mWindow);
+		if (window)
+			context.reset(SDL_GL_CreateContext(window.get()));
 
-		if (!mContext)
+		if (!context)
 		{
-			if (mWindow) { SDL_DestroyWindow((SDL_Window*)mWindow); mWindow = nullptr; }
-			Sexy::LogError("Failed to create WebGL context.");
+			Sexy::LogErrorLn("Failed to create WebGL context.");
 			return;
 		}
 
 		SDL_GL_SetSwapInterval(0);
+
+		mWindow = (void*)window.release();
+		mContext = (void*)context.release();
 	}
 
 	if (mGLInterface == nullptr)
 	{
-		mGLInterface = new GLInterface(this);
+		mGLInterface = std::make_unique<GLInterface>(this);
 		if (!InitGLInterface())
 		{
-			delete mGLInterface;
 			mGLInterface = nullptr;
 			return;
 		}
@@ -98,7 +106,7 @@ void SexyAppBase::MakeWindow()
 		isActive = mActive;
 		RehupFocus();
 	}
-	
+
 	if (isActive != mActive)
 		RehupFocus();
 

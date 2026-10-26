@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -23,20 +23,20 @@
  */
 
 #include "DialogButton.h"
-//#include "graphics/SysFont.h"
-#include "graphics/ImageFont.h"
+#include "graphics/Font.h"
 #include "WidgetManager.h"
-#include "../../Resources.h" // bad
+#include "SexyAppBase.h"
 
 using namespace Sexy;
 
-static int gDialogButtonColors[][3] = {
-	{255, 255, 255},
-	{255, 255, 255},
-	{0, 0, 0},
-	{255, 255, 255},
-	{132, 132, 132},
-	{212, 212, 212}};
+static constexpr ButtonColorScheme gDialogButtonColors{
+	.mLabel = Color(255, 255, 255),
+	.mLabelHilite = Color(255, 255, 255),
+	.mDarkOutline = Color(0, 0, 0),
+	.mLightOutline = Color(255, 255, 255),
+	.mMediumOutline = Color(132, 132, 132),
+	.mBkg = Color(212, 212, 212),
+};
 
 DialogButton::DialogButton(Image* theComponentImage, int theId, ButtonListener* theListener) :
 	ButtonWidget(theId, theListener)
@@ -47,7 +47,7 @@ DialogButton::DialogButton(Image* theComponentImage, int theId, ButtonListener* 
 	mTranslateX = mTranslateY = 1;
 	mDoFinger = true;
 
-	SetColors(gDialogButtonColors, NUM_COLORS);
+	SetColors(gDialogButtonColors);
 }
 
 void DialogButton::Draw(Graphics* g)
@@ -61,9 +61,9 @@ void DialogButton::Draw(Graphics* g)
 		return;
 	}
 
-	if ((mFont == nullptr) && (mLabel.length() > 0))
-		mFont = FONT_PICO129->Duplicate();
-		//mFont = new SysFont(mWidgetManager->mApp, "Arial Unicode MS", 12, true);
+	_Font* aDefaultFont = mWidgetManager->mApp->mDefaultFont.load();
+	if ((mFont == nullptr) && (mLabel.length() > 0) && (aDefaultFont != nullptr))
+		mFont.reset(aDefaultFont->Duplicate());
 
 	bool doTranslate = IsButtonDown();
 
@@ -78,7 +78,7 @@ void DialogButton::Draw(Graphics* g)
 	{
 		if (mDisabled && (mDisabledRect.mWidth > 0) && (mDisabledRect.mHeight > 0))
 			g->DrawImageBox(mDisabledRect, Rect(0, 0, mWidth, mHeight), mComponentImage);
-		else if (IsButtonDown())	
+		else if (IsButtonDown())
 			g->DrawImageBox(mDownRect, Rect(0, 0, mWidth, mHeight), mComponentImage);
 		else if ((mOverAlpha > 0))
 		{
@@ -94,20 +94,20 @@ void DialogButton::Draw(Graphics* g)
 			g->DrawImageBox(mOverRect, Rect(0, 0, mWidth, mHeight), mComponentImage);
 		else
 			g->DrawImageBox(mNormalRect, Rect(0, 0, mWidth, mHeight), mComponentImage);
-		
+
 		if (doTranslate)
 			g->Translate(mTranslateX, mTranslateY);
 	}
 
 	if (mFont != nullptr)
 	{
-		g->SetFont(mFont);		
+		g->SetFont(mFont.get());
 
 		if (mIsOver)
-			g->SetColor(mColors[COLOR_LABEL_HILITE]);
+			g->SetColor(mColors.mLabelHilite);
 		else
-			g->SetColor(mColors[COLOR_LABEL]);
-		
+			g->SetColor(mColors.mLabel);
+
 		int aFontX = (mWidth - mFont->StringWidth(mLabel))/2;
 		int aFontY = (mHeight + mFont->GetAscent() - mFont->GetAscentPadding() - mFont->GetAscent()/6 - 1)/2;
 

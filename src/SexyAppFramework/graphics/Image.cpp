@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -35,7 +35,6 @@ Image::Image()
 	mNumRows = 1;
 	mNumCols = 1;
 
-	mAnimInfo = nullptr;
 	mDrawn = false;
 }
 
@@ -47,15 +46,10 @@ Image::Image(const Image& theImage) :
 {
 	mDrawn = false;
 	if (theImage.mAnimInfo != nullptr)
-		mAnimInfo = new AnimInfo(*theImage.mAnimInfo);
-	else
-		mAnimInfo = nullptr;
+		mAnimInfo = std::make_unique<AnimInfo>(*theImage.mAnimInfo);
 }
 
-Image::~Image()
-{
-	delete mAnimInfo;
-}
+Image::~Image() = default;
 
 int Image::GetWidth()
 {
@@ -65,16 +59,6 @@ int Image::GetWidth()
 int	Image::GetHeight()
 {
 	return mHeight;
-}
-
-int Image::GetCelHeight()
-{
-	return mHeight / mNumRows;
-}
-
-int Image::GetCelWidth()
-{
-	return mWidth / mNumCols;
 }
 
 Rect Image::GetCelRect(int theCel)
@@ -136,7 +120,7 @@ void AnimInfo::Compute(int theNumCels, int theBeginFrameTime, int theEndFrameTim
 	if (!mFrameMap.empty())
 		mNumCels = (int)mFrameMap.size();
 
-	if (theBeginFrameTime>0) 
+	if (theBeginFrameTime>0)
 		SetPerFrameDelay(0,theBeginFrameTime);
 
 	if (theEndFrameTime>0)
@@ -151,7 +135,7 @@ void AnimInfo::Compute(int theNumCels, int theBeginFrameTime, int theEndFrameTim
 		{
 			if (mPerFrameDelay[i]<=0)
 				mPerFrameDelay[i] = mFrameDelay;
-				
+
 			mTotalAnimTime += mPerFrameDelay[i];
 		}
 	}
@@ -161,7 +145,7 @@ void AnimInfo::Compute(int theNumCels, int theBeginFrameTime, int theEndFrameTim
 	if (!mFrameMap.empty())
 		mFrameMap.resize(mNumCels);
 }
-	
+
 int AnimInfo::GetPerFrameCel(int theTime)
 {
 	for (int i=0; i<mNumCels; i++)
@@ -197,7 +181,7 @@ int AnimInfo::GetCel(int theTime)
 	if (mFrameMap.empty())
 		return aFrame;
 	else
-		return mFrameMap[aFrame];	
+		return mFrameMap[aFrame];
 }
 
 int	Image::GetAnimCel(int theTime)
@@ -224,15 +208,14 @@ void Image::CopyAttributes(Image *from)
 {
 	mNumCols = from->mNumCols;
 	mNumRows = from->mNumRows;
-	delete mAnimInfo;
-	mAnimInfo = nullptr;
+	mAnimInfo.reset();
 	if (from->mAnimInfo != nullptr)
-		mAnimInfo = new AnimInfo(*from->mAnimInfo);
+		mAnimInfo = std::make_unique<AnimInfo>(*from->mAnimInfo);
 }
 
 Graphics* Image::GetGraphics()
 {
-	Graphics* g = new Graphics(this);	
+	Graphics* g = new Graphics(this);
 
 	return g;
 }
@@ -258,8 +241,8 @@ void Image::FillScanLines(Span* theSpans, int theSpanCount, const Color& theColo
 {
 	for (int i = 0; i < theSpanCount; i++)
 	{
-		Span* aSpan = &theSpans[i];		
-		FillRect(Rect(aSpan->mX, aSpan->mY, aSpan->mWidth, 1), theColor, theDrawMode);		
+		Span* aSpan = &theSpans[i];
+		FillRect(Rect(aSpan->mX, aSpan->mY, aSpan->mWidth, 1), theColor, theDrawMode);
 	}
 }
 

@@ -24,7 +24,8 @@
 
 #include "ConstEnums.h"
 #include "SexyAppFramework/SexyApp.h"
-#include "Sexy.TodLib/TodFoley.h"
+#include "PvzpLib/PvzpFoley.h"
+#include <memory>
 
 class Board;
 class GameSelector;
@@ -32,12 +33,12 @@ class ChallengeDefinition;
 class SeedChooserScreen;
 class AwardScreen;
 class CreditScreen;
-class TodFoley;
+class PvzpFoley;
 class PoolEffect;
 class ZenGarden;
 class PottedPlant;
 class EffectSystem;
-class TodParticleSystem;
+class PvzpParticleSystem;
 class Reanimation;
 class ReanimatorCache;
 class ProfileMgr;
@@ -47,6 +48,10 @@ class TitleScreen;
 class ChallengeScreen;
 class StoreScreen;
 class AlmanacDialog;
+class ControllerOptionsDialog;
+class ControllerHelpDialog;
+class CheatsDialog;
+class PortOptionsDialog;
 class TypingCheck;
 
 namespace Sexy
@@ -57,9 +62,6 @@ namespace Sexy
 };
 
 using namespace Sexy;
-
-typedef std::list<ButtonWidget*> ButtonList;
-typedef std::list<Image*> ImageList;
 
 class LevelStats
 {
@@ -75,20 +77,18 @@ class LawnApp : public SexyApp
 {
 public:
 	Board*							mBoard;
-	TitleScreen*					mTitleScreen;
-	GameSelector*					mGameSelector;
-	SeedChooserScreen*				mSeedChooserScreen;
-	AwardScreen*					mAwardScreen;
-	CreditScreen*					mCreditScreen;
-	ChallengeScreen*				mChallengeScreen;
-	TodFoley*						mSoundSystem;
-	ButtonList						mControlButtonList;
-	ImageList						mCreatedImageList;
+	std::unique_ptr<TitleScreen>	mTitleScreen;
+	std::unique_ptr<GameSelector>	mGameSelector;
+	std::unique_ptr<SeedChooserScreen>	mSeedChooserScreen;
+	std::unique_ptr<AwardScreen>	mAwardScreen;
+	std::unique_ptr<CreditScreen>	mCreditScreen;
+	std::unique_ptr<ChallengeScreen>	mChallengeScreen;
+	std::unique_ptr<PvzpFoley>		mSoundSystem;
 	std::string						mReferId;
 	std::string						mRegisterLink;
 	std::string						mMod;
 	bool							mRegisterResourcesLoaded;
-	bool							mTodCheatKeys;
+	bool							mCheatKeys;
 	GameMode						mGameMode;
 	GameScenes						mGameScene;
 	bool							mLoadingZombiesThreadCompleted;
@@ -98,16 +98,16 @@ public:
 	int								mMaxPlays;
 	int								mMaxTime;
 	bool							mEasyPlantingCheat;
-	PoolEffect*						mPoolEffect;
-	ZenGarden*						mZenGarden;
-	EffectSystem*					mEffectSystem;
-	ReanimatorCache*				mReanimatorCache;
-	ProfileMgr*						mProfileMgr;
+	std::unique_ptr<PoolEffect>		mPoolEffect;
+	std::unique_ptr<ZenGarden>		mZenGarden;
+	std::unique_ptr<EffectSystem>	mEffectSystem;
+	std::unique_ptr<ReanimatorCache>	mReanimatorCache;
+	std::unique_ptr<ProfileMgr>		mProfileMgr;
 	PlayerInfo*						mPlayerInfo;
-	LevelStats*						mLastLevelStats;
-	bool							mCloseRequest;
+	std::unique_ptr<LevelStats>		mLastLevelStats;
+	std::atomic<bool>					mCloseRequest;
 	uint32_t						mAppCounter;
-	Music*							mMusic;
+	std::unique_ptr<Music>			mMusic;
 	ReanimationID					mCrazyDaveReanimID;
 	CrazyDaveState					mCrazyDaveState;
 	int								mCrazyDaveBlinkCounter;
@@ -115,22 +115,21 @@ public:
 	int								mCrazyDaveMessageIndex;
 	std::string						mCrazyDaveMessageText;
 	int								mAppRandSeed;
-	//HICON							mBigArrowCursor;
 	intptr_t						mSessionID;
 	int								mPlayTimeActiveSession;
 	int								mPlayTimeInactiveSession;
 	BoardResult						mBoardResult;
 	bool							mSawYeti;
-	TypingCheck*					mKonamiCheck;
-	TypingCheck*					mMustacheCheck;
-	TypingCheck*					mMoustacheCheck;
-	TypingCheck*					mSuperMowerCheck;
-	TypingCheck*					mSuperMowerCheck2;
-	TypingCheck*					mFutureCheck;
-	TypingCheck*					mPinataCheck;
-	TypingCheck*					mDanceCheck;
-	TypingCheck*					mDaisyCheck;
-	TypingCheck*					mSukhbirCheck;
+	std::unique_ptr<TypingCheck>	mKonamiCheck;
+	std::unique_ptr<TypingCheck>	mMustacheCheck;
+	std::unique_ptr<TypingCheck>	mMoustacheCheck;
+	std::unique_ptr<TypingCheck>	mSuperMowerCheck;
+	std::unique_ptr<TypingCheck>	mSuperMowerCheck2;
+	std::unique_ptr<TypingCheck>	mFutureCheck;
+	std::unique_ptr<TypingCheck>	mPinataCheck;
+	std::unique_ptr<TypingCheck>	mDanceCheck;
+	std::unique_ptr<TypingCheck>	mDaisyCheck;
+	std::unique_ptr<TypingCheck>	mSukhbirCheck;
 	bool							mMustacheMode;
 	bool							mSuperMowerMode;
 	bool							mFutureMode;
@@ -159,7 +158,7 @@ public:
 	void							URLOpenSucceeded(const std::string& theURL) override;
 	bool							OpenURL(const std::string& theURL, bool shutdownOnOpen) override;
 	bool							DebugKeyDown(int theKey) override;
-	void							HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue) override;
+	void							HandleCmdLineParam(std::string_view theParamName, std::string_view theParamValue) override;
 	void							ConfirmQuit();
 	void							ConfirmCheckForUpdates() { ; }
 	void							CheckForUpdates() { ; }
@@ -169,6 +168,7 @@ public:
 	void							DoCheatDialog();
 	void							FinishCheatDialog(bool isYes);
 	void							FinishCreateUserDialog(bool isYes);
+	std::string						GetFormattedString(std::string_view theComponentId, std::string_view theDefault, ...);
 	void							DoConfirmDeleteUserDialog(const std::string& theName);
 	void							FinishConfirmDeleteUserDialog(bool isYes);
 	void							DoRenameUserDialog(const std::string& theName);
@@ -185,7 +185,7 @@ public:
 	void							PreNewGame(GameMode theGameMode, bool theLookForSavedGame);
 	void							ShowGameSelector();
 	void							KillGameSelector();
-	void							ShowAwardScreen(AwardType theAwardType, bool theShowAchievements); // @Patoke: add argument
+	void							ShowAwardScreen(AwardType theAwardType, bool theShowAchievements);
 	void							KillAwardScreen();
 	void							ShowSeedChooserScreen();
 	void							KillSeedChooserScreen();
@@ -193,10 +193,11 @@ public:
 	void							DoBackToMain();
 	void							DoConfirmBackToMain();
 	void							DoNewOptions(bool theFromGameSelector);
+	void							ShowZombatarTOS();
 	void							DoRegister();
 	void							DoRegisterError();
 	bool							CanDoRegisterDialog();
-	/*inline*/ bool					WriteCurrentUserConfig();
+	bool					WriteCurrentUserConfig();
 	void							DoNeedRegisterDialog();
 	void							DoContinueDialog();
 	void							DoPauseDialog();
@@ -215,6 +216,16 @@ public:
 	bool							ChangeDirHook(const char* theIntendedPath) override;
 	virtual bool					NeedRegister();
 	virtual void					UpdateRegisterInfo();
+	bool							ControllerBoardCell(int thePx, int thePy, int& outCX, int& outCY, int& outW, int& outH) override;
+	void							ControllerAutoCollect(int thePx, int thePy) override;
+	bool							mInfiniteSunCheat = false;	// tops sun up while playing; not saved
+	int								mSlowDownCounter = 0;		// L2 drops one update in four; the game's own gSlowMo runs at a quarter speed
+	bool							mWantControllerSettings = false;
+	bool							mWantCheats = false;
+	bool							mWantWinLevel = false;		// the cheat asked to end the level; run once the dialogs are gone
+	bool							mControllerHelpShown = false;	// shown already this run; not saved, so it returns each launch
+	bool							ControllerInGame() override;
+	bool							ControllerLawnBounds(int thePx, int& outLeft, int& outTop, int& outRight, int& outBottom) override;
 	void							ButtonPress(int theId) override;
 	void							ButtonDepress(int theId) override;
 	void							ButtonDownTick(int theId) override;
@@ -224,10 +235,10 @@ public:
 	void							UpdateFrames() override;
 	bool							UpdateAppStep(bool* updated) override;
 	bool							UpdateApp() override;
-	/*inline*/ bool					IsAdventureMode();
-	/*inline*/ bool					IsSurvivalMode();
+	bool					IsAdventureMode();
+	bool					IsSurvivalMode();
 	bool							IsContinuousChallenge();
-	/*inline*/ bool					IsArtChallenge();
+	bool					IsArtChallenge();
 	bool							NeedPauseGame();
 	virtual void					ShowResourceError(bool doExit = false);
 	void							ToggleSlowMo();
@@ -237,51 +248,56 @@ public:
 	void							PlaySample(intptr_t theSoundNum) override;
 	void							FastLoad(GameMode theGameMode);
 	static std::string				GetStageString(int theLevel);
-	/*inline*/ void					KillChallengeScreen();
+	void					KillChallengeScreen();
 	void							ShowChallengeScreen(ChallengePage thePage);
 	const ChallengeDefinition&			GetCurrentChallengeDef();
 	void							CheckForGameEnd();
 	void							CloseRequestAsync() override;
-	/*inline*/ bool					IsChallengeWithoutSeedBank();
+	bool					IsChallengeWithoutSeedBank();
 	AlmanacDialog*					DoAlmanacDialog(SeedType theSeedType = SeedType::SEED_NONE, ZombieType theZombieType = ZombieType::ZOMBIE_INVALID);
+	ControllerOptionsDialog*		DoControllerOptionsDialog();
+	ControllerHelpDialog*			DoControllerHelpDialog(bool theOfferSettings);
+	CheatsDialog*					DoCheatsDialog();
+	PortOptionsDialog*				DoPortOptionsDialog();
+	void							ShowControllerHelpOnce();
 	bool							KillAlmanacDialog();
 	int								GetSeedsAvailable();
 	Reanimation*					AddReanimation(float theX, float theY, int theRenderOrder, ReanimationType theReanimationType);
-	TodParticleSystem*				AddTodParticle(float theX, float theY, int theRenderOrder, ParticleEffect theEffect);
-	/*inline*/ ParticleSystemID		ParticleGetID(TodParticleSystem* theParticle);
-	/*inline*/ TodParticleSystem*	ParticleGet(ParticleSystemID theParticleID);
-	/*inline*/ TodParticleSystem*	ParticleTryToGet(ParticleSystemID theParticleID);
-	/*inline*/ ReanimationID		ReanimationGetID(Reanimation* theReanimation);
-	/*inline*/ Reanimation*			ReanimationGet(ReanimationID theReanimationID);
-	/*inline*/ Reanimation*			ReanimationTryToGet(ReanimationID theReanimationID);
+	PvzpParticleSystem*				AddPvzpParticle(float theX, float theY, int theRenderOrder, ParticleEffect theEffect);
+	ParticleSystemID		ParticleGetID(PvzpParticleSystem* theParticle);
+	PvzpParticleSystem*	ParticleGet(ParticleSystemID theParticleID);
+	PvzpParticleSystem*	ParticleTryToGet(ParticleSystemID theParticleID);
+	ReanimationID		ReanimationGetID(Reanimation* theReanimation);
+	Reanimation*			ReanimationGet(ReanimationID theReanimationID);
+	Reanimation*			ReanimationTryToGet(ReanimationID theReanimationID);
 	void							RemoveReanimation(ReanimationID theReanimationID);
 	void							RemoveParticle(ParticleSystemID theParticleID);
 	StoreScreen*					ShowStoreScreen();
 	void							KillStoreScreen();
 	bool							HasSeedType(SeedType theSeedType);
-	/*inline*/ void					EndLevel();
+	void					EndLevel();
 	inline bool						IsIceDemo() { return false; }
-	/*inline*/ bool					IsShovelLevel();
-	/*inline*/ bool					IsWallnutBowlingLevel();
-	/*inline*/ bool					IsMiniBossLevel();
-	/*inline*/ bool					IsSlotMachineLevel();
-	/*inline*/ bool					IsLittleTroubleLevel();
-	/*inline*/ bool					IsStormyNightLevel();
-	/*inline*/ bool					IsFinalBossLevel();
-	/*inline*/ bool					IsBungeeBlitzLevel();
-	static /*inline*/ SeedType		GetAwardSeedForLevel(int theLevel);
+	bool					IsShovelLevel();
+	bool					IsWallnutBowlingLevel();
+	bool					IsMiniBossLevel();
+	bool					IsSlotMachineLevel();
+	bool					IsLittleTroubleLevel();
+	bool					IsStormyNightLevel();
+	bool					IsFinalBossLevel();
+	bool					IsBungeeBlitzLevel();
+	static SeedType		GetAwardSeedForLevel(int theLevel);
 	std::string						GetCrazyDaveText(int theMessageIndex);
-	/*inline*/ bool					CanShowAlmanac();
-	/*inline*/ bool					IsNight();
-	/*inline*/ bool					CanShowStore();
-	/*inline*/ bool					HasBeatenChallenge(GameMode theGameMode);
+	bool					CanShowAlmanac();
+	bool					IsNight();
+	bool					CanShowStore();
+	bool					HasBeatenChallenge(GameMode theGameMode);
 	PottedPlant*					GetPottedPlantByIndex(int thePottedPlantIndex);
-	static /*inline*/ bool			IsSurvivalNormal(GameMode theGameMode);
-	static /*inline*/ bool			IsSurvivalHard(GameMode theGameMode);
-	static /*inline*/ bool			IsSurvivalEndless(GameMode theGameMode);
-	/*inline*/ bool					HasFinishedAdventure();
-	/*inline*/ bool					IsFirstTimeAdventureMode();
-	/*inline*/ bool					CanSpawnYetis();
+	static bool			IsSurvivalNormal(GameMode theGameMode);
+	static bool			IsSurvivalHard(GameMode theGameMode);
+	static bool			IsSurvivalEndless(GameMode theGameMode);
+	bool					HasFinishedAdventure();
+	bool					IsFirstTimeAdventureMode();
+	bool					CanSpawnYetis();
 	void							CrazyDaveEnter();
 	void							UpdateCrazyDave();
 	void							CrazyDaveTalkIndex(int theMessageIndex);
@@ -297,50 +313,45 @@ public:
 	void							KillCreditScreen();
 	static std::string				Pluralize(int theCount, const char* theSingular, const char* thePlural);
 	int								GetNumTrophies(ChallengePage thePage);
-	/*inline*/ bool					EarnedGoldTrophy();
+	bool					EarnedGoldTrophy();
 	inline bool						IsRegistered() { return false; }
 	inline bool						IsExpired() { return false; }
 	inline bool						IsDRMConnected() { return false; }
-	/*inline*/ bool					IsScaryPotterLevel();
-	static /*inline*/ bool			IsEndlessScaryPotter(GameMode theGameMode);
-	/*inline*/ bool					IsSquirrelLevel();
-	/*inline*/ bool					IsIZombieLevel();
-	/*inline*/ bool					CanShowZenGarden();
+	bool					IsScaryPotterLevel();
+	static bool			IsEndlessScaryPotter(GameMode theGameMode);
+	bool					IsSquirrelLevel();
+	bool					IsIZombieLevel();
+	bool					CanShowZenGarden();
 	static std::string				GetMoneyString(int theAmount);
 	bool							AdvanceCrazyDaveText();
-	/*inline*/ bool					IsWhackAZombieLevel();
+	bool					IsWhackAZombieLevel();
 	void							UpdatePlayTimeStats();
 	void							BetaAddFile(std::list<std::string>& theUploadFileList, std::string theFileName, std::string theShortName);
 	bool							CanPauseNow();
-	/*inline*/ bool					IsPuzzleMode();
-	/*inline*/ bool					IsChallengeMode();
-	static /*inline*/ bool			IsEndlessIZombie(GameMode theGameMode);
+	bool					IsPuzzleMode();
+	bool					IsChallengeMode();
+	static bool			IsEndlessIZombie(GameMode theGameMode);
 	void							CrazyDaveDoneHanding();
 	inline std::string				GetCurrentLevelName() { return "Unknown"; }
-	/*inline*/ int					TrophiesNeedForGoldSunflower();
-	/*inline*/ int					GetCurrentChallengeIndex();
+	int					TrophiesNeedForGoldSunflower();
+	int					GetCurrentChallengeIndex();
 	void							LoadGroup(const char* theGroupName, int theGroupAveMsToLoad);
-//	void							TraceLoadGroup(const char* theGroupName, int theGroupTime, int theTotalGroupWeigth, int theTaskWeight);
 	void							CrazyDaveStopSound();
-	/*inline*/ bool					IsTrialStageLocked();
-	/*inline*/ void					FinishZenGardenToturial();
+	bool					IsTrialStageLocked();
+	void					FinishZenGardenToturial();
 	bool							UpdatePlayerProfileForFinishingLevel();
 	bool							SaveFileExists();
-	/*inline*/ bool					CanDoPinataMode();
-	/*inline*/ bool					CanDoDanceMode();
-	/*inline*/ bool					CanDoDaisyMode();
+	bool					CanDoPinataMode();
+	bool					CanDoDanceMode();
+	bool					CanDoDaisyMode();
 	void							SwitchScreenMode(bool wantWindowed, bool is3d, bool force = false) override;
-	static /*inline*/ void			CenterDialog(Dialog* theDialog, int theWidth, int theHeight);
+	static void			CenterDialog(Dialog* theDialog, int theWidth, int theHeight);
 };
 
 std::string							LawnGetCurrentLevelName();
 bool								LawnGetCloseRequest();
 bool								LawnHasUsedCheatKeys();
 void								BetaSubmitFunc();
-
-extern bool (*gAppCloseRequest)();
-extern bool (*gAppHasUsedCheatKeys)();
-extern std::string (*gGetCurrentLevelName)();
 
 extern bool gIsPartnerBuild;
 extern bool gFastMo;

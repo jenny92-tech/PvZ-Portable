@@ -22,10 +22,9 @@
 #ifndef __LAWNDIALOG_H__
 #define __LAWNDIALOG_H__
 
-#include "../../Sexy.TodLib/TodCommon.h"
+#include "../../PvzpLib/PvzpCommon.h"
 #include "widget/Dialog.h"
-
-constexpr const int DIALOG_HEADER_OFFSET = 45;
+#include <memory>
 
 class LawnApp;
 class LawnDialog;
@@ -45,17 +44,17 @@ using namespace Sexy;
 class ReanimationWidget : public Widget
 {
 public:
-    LawnApp*				mApp;
-    Reanimation*			mReanim;
-    LawnDialog*				mLawnDialog;
-    float					mPosX;
-    float					mPosY;
+	LawnApp*				mApp;
+	Reanimation*			mReanim;
+	LawnDialog*				mLawnDialog;
+	float					mPosX;
+	float					mPosY;
 
 public:
 	ReanimationWidget();
 	~ReanimationWidget() override;
 
-	/*inline*/ void			Dispose();
+	void			Dispose();
 	void					Draw(Graphics*) override;
 	void					Update() override;
 	void					AddReanimation(float x, float y, ReanimationType theReanimationType);
@@ -66,10 +65,10 @@ class LawnDialog : public Dialog
 public:
 	LawnApp*				mApp;
 	int						mButtonDelay;
-	ReanimationWidget*		mReanimation;
+	std::unique_ptr<ReanimationWidget>	mReanimation;
 	bool					mDrawStandardBack;
-	LawnStoneButton*		mLawnYesButton;
-	LawnStoneButton*		mLawnNoButton;
+	std::unique_ptr<LawnStoneButton>	mLawnYesButton;
+	std::unique_ptr<LawnStoneButton>	mLawnNoButton;
 	bool					mTallBottom;
 	bool					mVerticalCenterText;
 
@@ -96,7 +95,7 @@ public:
 class GameOverDialog : public LawnDialog
 {
 public:
-	DialogButton*			mMenuButton;
+	std::unique_ptr<DialogButton>	mMenuButton;
 
 public:
 	GameOverDialog(const std::string& theMessage, bool theShowChallengeName);

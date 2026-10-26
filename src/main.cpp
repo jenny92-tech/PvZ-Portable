@@ -21,7 +21,7 @@
 
 #include "LawnApp.h"
 #include "Resources.h"
-#include "Sexy.TodLib/TodStringFile.h"
+#include "PvzpLib/PvzpStringFile.h"
 #include <cstdlib>
 #include <vector>
 using namespace Sexy;
@@ -31,14 +31,6 @@ using namespace Sexy;
 #include <shellapi.h>
 #endif
 
-#ifdef __3DS__
-#include <3ds.h>
-#include <malloc.h>
-extern "C" {
-	unsigned int __stacksize__ = 512 * 1024;
-}
-#endif
-
 #ifdef __SWITCH__
 #include <switch.h>
 #endif
@@ -46,10 +38,6 @@ extern "C" {
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
-
-bool (*gAppCloseRequest)();
-bool (*gAppHasUsedCheatKeys)();
-std::string (*gGetCurrentLevelName)();
 
 #ifdef _WIN32
 static std::vector<std::string> gUtf8ArgsStorage;
@@ -100,18 +88,11 @@ int main(int argc, char** argv)
 	consoleDebugInit(debugDevice_SVC);
 #endif
 
-#ifdef __3DS__
-	osSetSpeedupEnable(true);
-#endif
-
 #ifdef _WIN32
 	BuildUtf8ArgsFromWin32(argc, argv);
 #endif
 
-	TodStringListSetColors(gLawnStringFormats, gLawnStringFormatCount);
-	gGetCurrentLevelName = LawnGetCurrentLevelName;
-	gAppCloseRequest = LawnGetCloseRequest;
-	gAppHasUsedCheatKeys = LawnHasUsedCheatKeys;
+	PvzpStringListSetColors(gLawnStringFormats, gLawnStringFormatCount);
 	gExtractResourcesByName = Sexy::ExtractResourcesByName;
 	gLawnApp = new LawnApp();
 	gLawnApp->SetArgs(argc, argv);
@@ -119,8 +100,7 @@ int main(int argc, char** argv)
 	gLawnApp->Start();
 #ifndef __EMSCRIPTEN__
 	gLawnApp->Shutdown();
-	if (gLawnApp)
-		delete gLawnApp;
+	delete gLawnApp;
 #endif
 
 	return 0;

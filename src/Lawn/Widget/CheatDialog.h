@@ -24,12 +24,18 @@
 
 #include "LawnDialog.h"
 #include "widget/EditListener.h"
+#include <memory>
+
+namespace Sexy
+{
+	class EditWidget;
+}
 
 class CheatDialog : public LawnDialog, public EditListener
 {
 public:
 	LawnApp*			mApp;
-	EditWidget*			mLevelEditWidget;
+	std::unique_ptr<EditWidget>	mLevelEditWidget;
 
 public:
 	CheatDialog(LawnApp* theApp);

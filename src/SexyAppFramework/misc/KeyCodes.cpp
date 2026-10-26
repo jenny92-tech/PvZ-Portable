@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -26,10 +26,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <SDL.h>
 
 using namespace Sexy;
 
-#define MAX_KEYNAME_LEN 12
+constexpr const int MAX_KEYNAME_LEN = 12;
 
 typedef struct
 {
@@ -135,12 +136,11 @@ KeyCode	Sexy::GetKeyCodeFromName(const std::string& theKeyName)
 	if (theKeyName.length() >= MAX_KEYNAME_LEN-1)
 		return KEYCODE_UNKNOWN;
 
-	strcpy(aKeyName, theKeyName.c_str());
-	//strupr(aKeyName);
+	SDL_strlcpy(aKeyName, theKeyName.c_str(), sizeof(aKeyName));
 	char *s = aKeyName;
 	while (*s)
 	{
-		*s = toupper(*s);
+		*s = toupper(static_cast<unsigned char>(*s));
 		s++;
 	}
 
@@ -153,11 +153,11 @@ KeyCode	Sexy::GetKeyCodeFromName(const std::string& theKeyName)
 
 		if ((aKeyNameChar >= ((unsigned char) KEYCODE_ASCIIBEGIN2) - 0x80) && (aKeyNameChar <= ((unsigned char) KEYCODE_ASCIIEND2) - 0x80))
 			return (KeyCode) (aKeyNameChar + 0x80);
-	}	
+	}
 
-	for (size_t i = 0; i < sizeof(aKeyCodeArray)/sizeof(aKeyCodeArray[0]); i++)	
+	for (size_t i = 0; i < sizeof(aKeyCodeArray)/sizeof(aKeyCodeArray[0]); i++)
 		if (strcmp(aKeyName, aKeyCodeArray[i].mKeyName) == 0)
-			return aKeyCodeArray[i].mKeyCode;	
+			return aKeyCodeArray[i].mKeyCode;
 
 	return KEYCODE_UNKNOWN;
 }
@@ -176,9 +176,9 @@ const std::string Sexy::GetKeyNameFromCode(const KeyCode& theKeyCode)
 		return aStr;
 	}
 
-	for (size_t i = 0; i < sizeof(aKeyCodeArray)/sizeof(aKeyCodeArray[0]); i++)	
+	for (size_t i = 0; i < sizeof(aKeyCodeArray)/sizeof(aKeyCodeArray[0]); i++)
 		if (theKeyCode == aKeyCodeArray[i].mKeyCode)
-			return aKeyCodeArray[i].mKeyName;	
+			return aKeyCodeArray[i].mKeyName;
 
 	return "UNKNOWN";
 }

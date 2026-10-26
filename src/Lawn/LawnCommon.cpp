@@ -20,27 +20,28 @@
  */
 
 #include <time.h>
+#include <format>
 #include "Board.h"
 #include "Plant.h"
 #include "../LawnApp.h"
 #include "LawnCommon.h"
 #include "../Resources.h"
 #include "../GameConstants.h"
-#include "../Sexy.TodLib/TodCommon.h"
+#include "../PvzpLib/PvzpCommon.h"
 #include "graphics/Font.h"
 #include "widget/Dialog.h"
 #include "misc/SexyMatrix.h"
 #include "widget/Checkbox.h"
 
-int gLawnEditWidgetColors[][4] = {
-    { 0,   0,   0,   0 },
-    { 0,   0,   0,   0 },
-    { 240, 240, 255, 255 },
-    { 255, 255, 255, 255 },
-    { 0,   0,   0,   255 },
+static constexpr EditWidgetColorScheme gLawnEditWidgetColors{
+	.mBkg = Color(0, 0, 0, 0),
+	.mOutline = Color(0, 0, 0, 0),
+	.mText = Color(240, 240, 255, 255),
+	.mHilite = Color(255, 255, 255, 255),
+	.mHiliteText = Color(0, 0, 0, 255),
 };
 
-// 判断在 [theNumber - theRange, theNumber + theRange] 区间内是否存在 theMod 的整数倍数
+// returns whether [theNumber - theRange, theNumber + theRange] contains a multiple of theMod
 bool ModInRange(int theNumber, int theMod, int theRange)
 {
 	theRange = abs(theRange);
@@ -49,7 +50,7 @@ bool ModInRange(int theNumber, int theMod, int theRange)
 	return false;
 }
 
-// 判断点 (x1, y1) 是否位于点 (x2, y2) 周围的 (theRangeX, theRangeY) 范围内
+// returns whether (x1, y1) is within (theRangeX, theRangeY) of (x2, y2)
 bool GridInRange(int x1, int y1, int x2, int y2, int theRangeX, int theRangeY)
 {
 	return x1 >= x2 - theRangeX && x1 <= x2 + theRangeX && y1 >= y2 - theRangeY && y1 <= y2 + theRangeY;
@@ -79,8 +80,8 @@ void TileImageVertically(Graphics* g, Image* theImage, int theX, int theY, int t
 
 LawnEditWidget::LawnEditWidget(int theId, EditListener* theListener, Dialog* theDialog) : EditWidget(theId, theListener)
 {
-    mDialog = theDialog;
-    mAutoCapFirstLetter = true;
+	mDialog = theDialog;
+	mAutoCapFirstLetter = true;
 }
 
 LawnEditWidget::~LawnEditWidget()
@@ -89,64 +90,92 @@ LawnEditWidget::~LawnEditWidget()
 
 void LawnEditWidget::KeyDown(KeyCode theKey)
 {
-    EditWidget::KeyDown(theKey);
-    if (theKey == KeyCode::KEYCODE_ESCAPE)
-        mDialog->KeyDown(KeyCode::KEYCODE_ESCAPE);
+	EditWidget::KeyDown(theKey);
+	if (theKey == KeyCode::KEYCODE_ESCAPE)
+		mDialog->KeyDown(KeyCode::KEYCODE_ESCAPE);
+}
+
+// Uppercase ASCII letters in place; locale-independent, safe on UTF-8 bytes.
+static bool AutoCapChar(char& theChar)
+{
+	if (theChar >= 'a' && theChar <= 'z')
+	{
+		theChar = theChar - 'a' + 'A';
+		return true;
+	}
+
+	return theChar >= 'A' && theChar <= 'Z';
 }
 
 void LawnEditWidget::KeyChar(char theChar)
 {
-    if (mAutoCapFirstLetter && isalpha(theChar))
-    {
-        theChar = toupper(theChar);
-        mAutoCapFirstLetter = false;
-    }
+	if (mAutoCapFirstLetter && AutoCapChar(theChar))
+		mAutoCapFirstLetter = false;
 
-    EditWidget::KeyChar(theChar);
+	EditWidget::KeyChar(theChar);
 }
 
-LawnEditWidget* CreateEditWidget(int theId, EditListener* theListener, Dialog* theDialog)
+void LawnEditWidget::KeyText(std::string_view theText)
 {
-    LawnEditWidget* aEditWidget = new LawnEditWidget(theId, theListener, theDialog);
-    aEditWidget->SetFont(Sexy::FONT_BRIANNETOD16);
-    aEditWidget->SetColors(gLawnEditWidgetColors, EditWidget::NUM_COLORS);
-    aEditWidget->mBlinkDelay = 14;
+	if (!mAutoCapFirstLetter)
+	{
+		EditWidget::KeyText(theText);
+		return;
+	}
 
-    return aEditWidget;
+	std::string aText(theText);
+	for (char& aCh : aText)
+	{
+		if (AutoCapChar(aCh))
+		{
+			mAutoCapFirstLetter = false;
+			break;
+		}
+	}
+
+	EditWidget::KeyText(aText);
+}
+
+std::unique_ptr<LawnEditWidget> CreateEditWidget(int theId, EditListener* theListener, Dialog* theDialog)
+{
+	auto aEditWidget = std::make_unique<LawnEditWidget>(theId, theListener, theDialog);
+	aEditWidget->SetFont(Sexy::FONT_BRIANNETOD16);
+	aEditWidget->SetColors(gLawnEditWidgetColors);
+	aEditWidget->mBlinkDelay = 14;
+
+	return aEditWidget;
 }
 
 void DrawEditBox(Graphics* g, EditWidget* theWidget)
 {
-    Rect aDest(theWidget->mX - 8, theWidget->mY - 4, theWidget->mWidth + 16, theWidget->mHeight + 8);
-    g->DrawImageBox(aDest, IMAGE_EDITBOX);
+	Rect aDest(theWidget->mX - 8, theWidget->mY - 4, theWidget->mWidth + 16, theWidget->mHeight + 8);
+	g->DrawImageBox(aDest, IMAGE_EDITBOX);
 }
 
-Checkbox* MakeNewCheckbox(int theId, CheckboxListener* theListener, bool theDefault)
+std::unique_ptr<Checkbox> MakeNewCheckbox(int theId, CheckboxListener* theListener, bool theDefault)
 {
-    Checkbox* aCheckbox = new Checkbox(Sexy::IMAGE_OPTIONS_CHECKBOX0, Sexy::IMAGE_OPTIONS_CHECKBOX1, theId, theListener);
-    aCheckbox->mChecked = theDefault;
-    aCheckbox->mHasAlpha = true;
-    aCheckbox->mHasTransparencies = true;
+	auto aCheckbox = std::make_unique<Checkbox>(Sexy::IMAGE_OPTIONS_CHECKBOX0, Sexy::IMAGE_OPTIONS_CHECKBOX1, theId, theListener);
+	aCheckbox->mChecked = theDefault;
+	aCheckbox->mHasAlpha = true;
+	aCheckbox->mHasTransparencies = true;
 
-    return aCheckbox;
+	return aCheckbox;
 }
 
 std::string GetSavedGameName(GameMode theGameMode, int theProfileId)
 {
-    return GetAppDataPath(StrFormat("userdata/game%d_%d.v4", theProfileId, static_cast<int>(theGameMode)));
+	return GetAppDataPath(std::format("userdata/game{}_{}.v4", theProfileId, static_cast<int>(theGameMode)));
 }
 
-// GOTY @Patoke: 0x45A200
 std::string GetLegacySavedGameName(GameMode theGameMode, int theProfileId)
 {
-    return GetAppDataPath(StrFormat("userdata/game%d_%d.dat", theProfileId, static_cast<int>(theGameMode)));
+	return GetAppDataPath(std::format("userdata/game{}_{}.dat", theProfileId, static_cast<int>(theGameMode)));
 }
 
-int GetCurrentDaysSince2000()
+int GetCurrentDaysSince2000(time_t theTime)
 {
-    time_t aNow = time(0);
-    tm aNowTM = *localtime(&aNow);
+	tm aNowTM = gLawnApp->GetLocalTime(theTime);
 
-    int dy = aNowTM.tm_year - 100;
-    return dy * 365 + (dy - 1) / 400 - (dy - 1) / 100 + (dy - 1) / 4 + aNowTM.tm_yday + 1;
+	int dy = aNowTM.tm_year - 100;
+	return dy * 365 + (dy - 1) / 400 - (dy - 1) / 100 + (dy - 1) / 4 + aNowTM.tm_yday + 1;
 }

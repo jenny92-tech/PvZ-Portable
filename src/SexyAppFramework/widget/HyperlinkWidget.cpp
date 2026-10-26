@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -24,10 +24,9 @@
 
 #include "HyperlinkWidget.h"
 #include "graphics/Graphics.h"
-#include "graphics/ImageFont.h"
-//#include "graphics/SysFont.h"
+#include "graphics/Font.h"
 #include "WidgetManager.h"
-#include "../../Resources.h" // bad
+#include "SexyAppBase.h"
 
 using namespace Sexy;
 
@@ -35,7 +34,7 @@ HyperlinkWidget::HyperlinkWidget(int theId, ButtonListener* theButtonListener) :
 	ButtonWidget(theId, theButtonListener),
 	mColor(255, 255, 255),
 	mOverColor(255, 255, 255)
-{	
+{
 	mDoFinger = true;
 	mUnderlineOffset = 3;
 	mUnderlineSize = 1;
@@ -43,9 +42,11 @@ HyperlinkWidget::HyperlinkWidget(int theId, ButtonListener* theButtonListener) :
 
 void HyperlinkWidget::Draw(Graphics* g)
 {
+	_Font* aDefaultFont = mWidgetManager->mApp->mDefaultFont.load();
+	if ((mFont == nullptr) && (aDefaultFont != nullptr))
+		mFont.reset(aDefaultFont->Duplicate());
 	if (mFont == nullptr)
-		mFont = FONT_PICO129->Duplicate();
-		//mFont = new SysFont(mWidgetManager->mApp, "Arial Unicode MS", 10); //baz changed
+		return;
 
 	int aFontX = (mWidth - mFont->StringWidth(mLabel))/2;
 	int aFontY = (mHeight + mFont->GetAscent())/2 - 1;
@@ -55,7 +56,7 @@ void HyperlinkWidget::Draw(Graphics* g)
 	else
 		g->SetColor(mColor);
 
-	g->SetFont(mFont);	
+	g->SetFont(mFont.get());
 	g->DrawString(mLabel, aFontX, aFontY);
 
 	for (int i = 0; i < mUnderlineSize; i++)

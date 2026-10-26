@@ -7,7 +7,7 @@
 		int aU = (int) ((aCos*(aBaseX) - aSin*(aBaseY) + theRotCenterX) * 0x10000);\
 		int aV = (int) ((aCos*(aBaseY) + aSin*(aBaseX) + theRotCenterY) * 0x10000);\
 		\
-		DEST_PIXEL_TYPE* aDestPixels = aDestPixelsRow;\
+		[[maybe_unused]] DEST_PIXEL_TYPE* aDestPixels = aDestPixelsRow; /* Unused in some expansion instances */\
 		\
 		int aLeft = 0;\
 		int aRight = aDestRect.mWidth - 1;\
@@ -94,8 +94,8 @@
 				{
 					int aUInt = (aU >> 16);
 					int aVInt = (aV >> 16);
-								
-					SRC_TYPE* srcptr = aSrcBits + 
+
+					SRC_TYPE* srcptr = aSrcBits +
 						(aVInt * aWidth) + aUInt;
 
 					int aUFactor = (aU & 0xFFFE) + 1; // aUFactor needs to be between 1 and 0xFFFF to avoid overflow
@@ -105,7 +105,7 @@
 					uint32_t src2 = READ_COLOR(srcptr+1);
 					uint32_t src3 = READ_COLOR(srcptr+theImage->mWidth);
 					uint32_t src4 = READ_COLOR(srcptr+1+theImage->mWidth);
-					
+
 					int a1 = ((src1 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 					int a2 = ((src2 >> 24) * ((uint32_t) ((           aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 					int a3 = ((src3 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (           aVFactor)) >> 16)) >> 16;
@@ -130,8 +130,8 @@
 				{
 					int aUInt = (aU >> 16);
 					int aVInt = (aV >> 16);
-								
-					SRC_TYPE* srcptr = aSrcBits + 
+
+					SRC_TYPE* srcptr = aSrcBits +
 						(aVInt * aWidth) + aUInt;
 
 					int aUFactor = (aU & 0xFFFE) + 1; // aUFactor needs to be between 1 and 0xFFFF to avoid overflow
@@ -141,7 +141,7 @@
 					uint32_t src2 = READ_COLOR(srcptr+1);
 					uint32_t src3 = READ_COLOR(srcptr+theImage->mWidth);
 					uint32_t src4 = READ_COLOR(srcptr+1+theImage->mWidth);
-					
+
 					int a1 = ((src1 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 					int a2 = ((src2 >> 24) * ((uint32_t) ((           aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 					int a3 = ((src3 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (           aVFactor)) >> 16)) >> 16;
@@ -164,8 +164,8 @@
 				{
 					int aUInt = (aU >> 16);
 					int aVInt = (aV >> 16);
-								
-					SRC_TYPE* srcptr = aSrcBits + 
+
+					SRC_TYPE* srcptr = aSrcBits +
 						(aVInt * aWidth) + aUInt;
 
 					int aUFactor = (aU & 0xFFFE) + 1; // aUFactor needs to be between 1 and 0xFFFF to avoid overflow
@@ -175,12 +175,12 @@
 					uint32_t src2 = READ_COLOR(srcptr+1);
 					uint32_t src3 = READ_COLOR(srcptr+theImage->mWidth);
 					uint32_t src4 = READ_COLOR(srcptr+1+theImage->mWidth);
-					
+
 					int a1 = ((src1 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 					int a2 = ((src2 >> 24) * ((uint32_t) ((           aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 					int a3 = ((src3 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (           aVFactor)) >> 16)) >> 16;
 					int a4 = ((src4 >> 24) * ((uint32_t) ((           aUFactor) * (           aVFactor)) >> 16)) >> 16;
-					
+
 					WRITE_PIXEL;
 
 					aU += aCosLong;
@@ -192,13 +192,12 @@
 		else if (aNumBits == 32)
 		{
 			EACH_ROW
-			(void)aDestPixels; // Unused only in this specific instance
 			for (int x = aLeft; x <= aRight; x++)
 			{
 				int aUInt = (aU >> 16);
 				int aVInt = (aV >> 16);
-							
-				SRC_TYPE* srcptr = aSrcBits + 
+
+				SRC_TYPE* srcptr = aSrcBits +
 					(aVInt * aWidth) + aUInt;
 
 				int aUFactor = (aU & 0xFFFE) + 1; // aUFactor needs to be between 1 and 0xFFFF to avoid overflow
@@ -208,14 +207,13 @@
 				uint32_t src2 = READ_COLOR(srcptr+1);
 				uint32_t src3 = READ_COLOR(srcptr+theImage->mWidth);
 				uint32_t src4 = READ_COLOR(srcptr+1+theImage->mWidth);
-				
-				int a1 = ((src1 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
-				int a2 = ((src2 >> 24) * ((uint32_t) ((           aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
-				int a3 = ((src3 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (           aVFactor)) >> 16)) >> 16;
-				int a4 = ((src4 >> 24) * ((uint32_t) ((           aUFactor) * (           aVFactor)) >> 16)) >> 16;
+
 				// Used, but the compiler can't work it out
-				(void)a1;(void)a2;(void)a3;(void)a4;
-				
+				[[maybe_unused]] int a1 = ((src1 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
+				[[maybe_unused]] int a2 = ((src2 >> 24) * ((uint32_t) ((           aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
+				[[maybe_unused]] int a3 = ((src3 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (           aVFactor)) >> 16)) >> 16;
+				[[maybe_unused]] int a4 = ((src4 >> 24) * ((uint32_t) ((           aUFactor) * (           aVFactor)) >> 16)) >> 16;
+
 				WRITE_PIXEL_OPTIMIZED;
 
 				aU += aCosLong;
@@ -232,8 +230,8 @@
 		{
 			int aUInt = (aU >> 16);
 			int aVInt = (aV >> 16);
-						
-			SRC_TYPE* srcptr = aSrcBits + 
+
+			SRC_TYPE* srcptr = aSrcBits +
 				(aVInt * aWidth) + aUInt;
 
 			int aUFactor = (aU & 0xFFFE) + 1; // aUFactor needs to be between 1 and 0xFFFF to avoid overflow
@@ -243,15 +241,15 @@
 			uint32_t src2 = READ_COLOR(srcptr+1);
 			uint32_t src3 = READ_COLOR(srcptr+theImage->mWidth);
 			uint32_t src4 = READ_COLOR(srcptr+1+theImage->mWidth);
-			
+
 			int a1 = ((src1 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 			int a2 = ((src2 >> 24) * ((uint32_t) ((           aUFactor) * (0x10000  - aVFactor)) >> 16)) >> 16;
 			int a3 = ((src3 >> 24) * ((uint32_t) ((0x10000  - aUFactor) * (           aVFactor)) >> 16)) >> 16;
 			int a4 = ((src4 >> 24) * ((uint32_t) ((           aUFactor) * (           aVFactor)) >> 16)) >> 16;
-			
+
 			WRITE_PIXEL;
 
-			
+
 			aU += aCosLong;
 			aV += aSinLong;
 		}

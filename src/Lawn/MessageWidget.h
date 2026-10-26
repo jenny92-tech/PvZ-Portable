@@ -27,8 +27,8 @@
 #include "../SexyAppFramework/Common.h"
 #include "../LawnApp.h"
 
-#define MAX_MESSAGE_LENGTH 128
-#define MAX_REANIM_LINES 5
+constexpr const int MAX_MESSAGE_LENGTH = 128;
+constexpr const int MAX_REANIM_LINES = 5;
 
 class LawnApp;
 namespace Sexy
@@ -57,13 +57,13 @@ public:
 	MessageWidget(LawnApp* theApp);
 	~MessageWidget() { ClearReanim(); }
 
-	/*inline*/ void		SetLabel(std::string_view theNewLabel, MessageStyle theMessageStyle);
+	void		SetLabel(std::string_view theNewLabel, MessageStyle theMessageStyle);
 	void				Update();
 	void				Draw(Sexy::Graphics* g);
 	void				ClearReanim();
-	/*inline*/ void		ClearLabel();
+	void		ClearLabel();
 	inline bool			IsBeingDisplayed() { return mDuration != 0; }
-	/*inline*/ _Font*	GetFont();
+	_Font*	GetFont();
 	void				DrawReanimatedText(Sexy::Graphics* g, Sexy::_Font* theFont, const Sexy::Color& theColor, float thePosY);
 	void				LayoutReanimText();
 };

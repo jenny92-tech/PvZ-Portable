@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -23,6 +23,9 @@
  */
 
 #include <SDL.h>
+
+#include <memory>
+#include <type_traits>
 
 #include "SexyAppBase.h"
 #include "graphics/GLInterface.h"
@@ -56,55 +59,57 @@ void SexyAppBase::MakeWindow()
 		Uint32 winFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
 			| (!mIsWindowed ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 
+		using WindowPtr = std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)>;
+		using GLContextPtr = std::unique_ptr<std::remove_pointer_t<SDL_GLContext>, decltype(&SDL_GL_DeleteContext)>;
+
 		// Try OpenGL ES 2.0 first (Linux, most Windows drivers, ANGLE, etc.)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-		mWindow = (void*)SDL_CreateWindow(
+		WindowPtr window(SDL_CreateWindow(
 			mTitle.c_str(),
 			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-			mWidth * IMG_DOWNSCALE, mHeight * IMG_DOWNSCALE, winFlags);
+			mWidth, mHeight, winFlags), &SDL_DestroyWindow);
+		GLContextPtr context(nullptr, &SDL_GL_DeleteContext);
 
-		if (mWindow)
-			mContext = (void*)SDL_GL_CreateContext((SDL_Window*)mWindow);
+		if (window)
+			context.reset(SDL_GL_CreateContext(window.get()));
 
 #if defined(__ANDROID__) || defined(__IPHONEOS__)
 		// EGL/EAGL surface may be transiently unavailable on mobile
-		for (int retry = 0; !mContext && mWindow && retry < 20; retry++)
+		for (int retry = 0; !context && window && retry < 20; retry++)
 		{
 			SDL_Delay(100);
 			SDL_PumpEvents();
-			mContext = (void*)SDL_GL_CreateContext((SDL_Window*)mWindow);
+			context.reset(SDL_GL_CreateContext(window.get()));
 		}
-		if (!mContext)
+		if (!context)
 		{
-			if (mWindow) { SDL_DestroyWindow((SDL_Window*)mWindow); mWindow = nullptr; }
-			Sexy::LogError("Failed to create OpenGL ES context.");
+			Sexy::LogErrorLn("Failed to create OpenGL ES context.");
 			return;
 		}
 #else
 		// Fallback: desktop GL 2.1 compatibility (macOS, old Windows drivers, etc.)
-		if (!mContext)
+		if (!context)
 		{
-			if (mWindow) { SDL_DestroyWindow((SDL_Window*)mWindow); mWindow = nullptr; }
+			window.reset();
 
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 
-			mWindow = (void*)SDL_CreateWindow(
+			window.reset(SDL_CreateWindow(
 				mTitle.c_str(),
 				SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-				mWidth * IMG_DOWNSCALE, mHeight * IMG_DOWNSCALE, winFlags);
+				mWidth, mHeight, winFlags));
 
-			if (mWindow)
-				mContext = (void*)SDL_GL_CreateContext((SDL_Window*)mWindow);
+			if (window)
+				context.reset(SDL_GL_CreateContext(window.get()));
 
-			if (!mContext)
+			if (!context)
 			{
-				if (mWindow) { SDL_DestroyWindow((SDL_Window*)mWindow); mWindow = nullptr; }
-				Sexy::LogError("Failed to create any OpenGL context. "
+				Sexy::LogErrorLn("Failed to create any OpenGL context. "
 					"Please check your graphics drivers.");
 				return;
 			}
@@ -114,14 +119,16 @@ void SexyAppBase::MakeWindow()
 #endif
 
 		SDL_GL_SetSwapInterval(1);
+
+		mWindow = (void*)window.release();
+		mContext = (void*)context.release();
 	}
 
 	if (mGLInterface == nullptr)
 	{
-		mGLInterface = new GLInterface(this);
+		mGLInterface = std::make_unique<GLInterface>(this);
 		if (!InitGLInterface())
 		{
-			delete mGLInterface;
 			mGLInterface = nullptr;
 			return;
 		}
@@ -140,7 +147,7 @@ void SexyAppBase::MakeWindow()
 		isActive = mActive; // set this here so we don't call RehupFocus again.
 		RehupFocus();
 	}
-	
+
 	if (isActive != mActive)
 		RehupFocus();
 

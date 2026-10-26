@@ -10,14 +10,10 @@ license=('LGPL-3.0-or-later')
 depends=(
     glibc
     libgcc
-    libjpeg-turbo
-    libogg
     libopenmpt
-    libpng
     libstdc++
-    libvorbis
-    mpg123
     sdl2-compat
+    zlib
 )
 makedepends=(
     cmake
@@ -39,7 +35,7 @@ pkgver() {
 }
 
 build() {
-    cmake -B build -S "${pkgname}" \
+    cmake -G Ninja -B build -S "${pkgname}" \
         -DCMAKE_BUILD_TYPE='Release' \
         -DCMAKE_INSTALL_PREFIX='/usr'
     cmake --build build

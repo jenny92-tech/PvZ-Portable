@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -30,40 +30,69 @@
 #include <string>
 #include <string_view>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include "PakMemoryMap.h"
+#include <mutex>
+#include <array>
+#include <span>
 
 class PakCollection;
 
-// [定义]资源包文件：包含了若干游戏资源的 .pak 文件。例如：main.pak
-// [定义]资源文件：资源包文件中的一项具体资源的文件。例如：zombie_falling_1.ogg
+// a .pak file (e.g. main.pak) packs individual resource files (e.g. zombie_falling_1.ogg)
 
-// ====================================================================================================
-// ★ 一个 PakRecord 实例对应资源包内的一个资源文件的数据，包括文件名，地址，大小等信息
-// ====================================================================================================
+// a PakRecord describes one resource file inside a pak: name, position, size, etc.
 class PakRecord
 {
 public:
-	PakCollection*			mCollection;			//+0x0：指向该资源文件所在的资源包的 PakCollection
-	std::string				mFileName;				//+0x4：资源文件的名称及路径（路径从 .pak 开始），例如 sounds\zombie_falling_1.ogg
-	int64_t				mFileTime;				//+0x20：八字节型的资源文件的时间戳
-	int						mStartPos;				//+0x28：该资源文件在资源包中的位置（即在 mCollection->mDataPtr 中的偏移量）
-	int						mSize;					//+0x2C：资源文件的大小，单位为 Byte（字节数）
+	PakCollection*			mCollection;			//+0x0
+	std::string				mFileName;				//+0x4: path inside the pak, e.g. sounds\zombie_falling_1.ogg
+	int64_t				mFileTime;				//+0x20: timestamp
+	int						mStartPos;				//+0x28: offset of the file data in the pak file
+	int						mSize;					//+0x2C: size in bytes
 };
 
 typedef std::map<std::string, PakRecord> PakRecordMap;
 
-// ====================================================================================================
-// ★ 一个 PakCollection 实例对应一个 pak 资源包在内存中的映射文件
-// ====================================================================================================
+// a PakCollection represents one pak file's storage
 class PakCollection
 {
 public:
-	//HANDLE					mFileHandle;
-	//HANDLE					mMappingHandle;
-	void*						mDataPtr;				//+0x8：资源包中的所有数据
+#ifdef LOW_MEMORY
+	FILE*						mFileHandle;
+	std::mutex					mFileMutex;
 
-	explicit PakCollection(size_t size) { mDataPtr = malloc(size); }
+	explicit PakCollection(FILE* theFileHandle) : mFileHandle(theFileHandle) {}
 
-	~PakCollection() { free(mDataPtr); }
+	~PakCollection() { fclose(mFileHandle); }
+
+	size_t ReadAt(void* thePtr, int theOffset, int theSize)
+	{
+		std::scoped_lock aLock(mFileMutex);
+		if (fseek(mFileHandle, theOffset, SEEK_SET) != 0)
+			return 0;
+		size_t aRead = fread(thePtr, 1, theSize, mFileHandle);
+		for (auto& aByte : std::span{static_cast<uint8_t*>(thePtr), aRead})
+			aByte ^= 0xF7;
+		return aRead;
+	}
+#else
+	// Keep the archive obfuscated in the page cache and decrypt on access.
+	PakMemoryMap			mMap;
+	void*					mOwnedData = nullptr;
+	size_t					mSize = 0;
+
+	PakCollection() = default;
+	~PakCollection() { free(mOwnedData); }
+
+	PakCollection(const PakCollection&) = delete;
+	PakCollection& operator=(const PakCollection&) = delete;
+
+	const uint8_t* DataPtr() const
+	{
+		return mMap.GetDataPtr() != nullptr ? mMap.GetDataPtr() : static_cast<const uint8_t*>(mOwnedData);
+	}
+#endif
 };
 
 typedef std::list<PakCollection> PakCollectionList;
@@ -73,6 +102,12 @@ struct PFILE
 	PakRecord*				mRecord;
 	int						mPos;
 	FILE*					mFP;
+#ifdef LOW_MEMORY
+	static constexpr int	BUFFER_SIZE = 8192;
+	std::array<uint8_t, BUFFER_SIZE>	mBuffer;
+	int						mBufferStart;
+	int						mBufferLen;
+#endif
 };
 
 class PakInterfaceBase
@@ -92,8 +127,8 @@ public:
 class PakInterface : public PakInterfaceBase
 {
 public:
-	PakCollectionList		mPakCollectionList;		//+0x4：通过 AddPakFile() 添加的各个资源包的内存映射文件数据的链表
-	PakRecordMap			mPakRecordMap;			//+0x10：所有已添加的资源包中的所有资源文件的、从文件名到文件数据的映射容器
+	PakCollectionList		mPakCollectionList;		//+0x4: data of every pak added via AddPakFile()
+	PakRecordMap			mPakRecordMap;			//+0x10: maps every resource file name to its record
 
 	static std::string		NormalizePakPath(std::string_view theFileName);
 
@@ -118,7 +153,7 @@ public:
 extern PakInterface* gPakInterface;
 
 [[maybe_unused]]
-static PFILE* p_fopen(const char* theFileName, const char* theAccess) 
+static PFILE* p_fopen(const char* theFileName, const char* theAccess)
 {
 	return gPakInterface->FOpen(theFileName, theAccess);
 }

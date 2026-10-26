@@ -26,16 +26,16 @@
 #include "sound/SoundManager.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
-#include "../../Sexy.TodLib/TodCommon.h"
+#include "../../PvzpLib/PvzpCommon.h"
 #include "misc/SexyMatrix.h"
-#include "../../Sexy.TodLib/TodStringFile.h"
-#include "../../Sexy.TodLib/EffectSystem.h"
-#include "../../Sexy.TodLib/TodDebug.h"
-#include "../../Sexy.TodLib/Reanimator.h"
+#include "../../PvzpLib/PvzpStringFile.h"
+#include "../../PvzpLib/EffectSystem.h"
+#include "../../PvzpLib/PvzpDebug.h"
+#include "../../PvzpLib/Reanimator.h"
 #include "../../GameConstants.h"
 #include "../System/Music.h"
+#include <algorithm>
 
-// GOTY @Patoke: 0x498220
 TitleScreen::TitleScreen(LawnApp* theApp)
 {
 	mCurBarWidth = 0.0f;
@@ -58,7 +58,7 @@ TitleScreen::TitleScreen(LawnApp* theApp)
 	mTitleStateCounter = 0;
 	mLoaderScreenIsLoaded = false;
 
-	mStartButton = new Sexy::HyperlinkWidget(0, this);
+	mStartButton = std::make_unique<Sexy::HyperlinkWidget>(0, this);
 	mStartButton->mColor = Sexy::Color(218, 184, 33);
 	mStartButton->mOverColor = Sexy::Color(250, 90, 15);
 	mStartButton->mUnderlineSize = 0;
@@ -68,11 +68,6 @@ TitleScreen::TitleScreen(LawnApp* theApp)
 
 TitleScreen::~TitleScreen()
 {
-	if (mStartButton)
-	{
-		delete mStartButton;
-	}
-
 #ifdef LOW_MEMORY
 	// Selectively delete only title-screen-specific resources from LoaderBar group.
 	mApp->mResourceManager->DeleteImage("IMAGE_LOADBAR_DIRT");
@@ -98,14 +93,13 @@ void TitleScreen::Draw(Graphics* g)
 
 		if (!mDrawnYet)
 		{
-			TodTraceAndLogLn("First Draw Time: %d ms", SDL_GetTicks() - mApp->mTimeLoaded);
-			TodHesitationTrace("TitleScreen First Draw");
+			PvzpLogLn("First Draw Time: {} ms", SDL_GetTicks() - mApp->mTimeLoaded);
 			mDrawnYet = true;
 		}
 
 		return;
 	}
-	
+
 	if (mTitleState == TitleState::TITLESTATE_POPCAP_LOGO)
 	{
 		g->SetColor(Color::Black);
@@ -116,12 +110,12 @@ void TitleScreen::Draw(Graphics* g)
 		{
 			if (!mDisplayPartnerLogo)
 			{
-				anAlpha = TodAnimateCurve(50, 0, mTitleStateCounter, 255, 0, TodCurves::CURVE_LINEAR);
+				anAlpha = PvzpAnimateCurve(50, 0, mTitleStateCounter, 255, 0, PvzpCurves::CURVE_LINEAR);
 			}
 		}
 		else
 		{
-			anAlpha = TodAnimateCurve(mTitleStateDuration, mTitleStateDuration - 50, mTitleStateCounter, 0, 255, TodCurves::CURVE_LINEAR);
+			anAlpha = PvzpAnimateCurve(mTitleStateDuration, mTitleStateDuration - 50, mTitleStateCounter, 0, 255, PvzpCurves::CURVE_LINEAR);
 		}
 		g->SetColorizeImages(true);
 		g->SetColor(Color(255, 255, 255, anAlpha));
@@ -140,13 +134,13 @@ void TitleScreen::Draw(Graphics* g)
 		int anAlpha = 255;
 		if (mTitleStateCounter >= mTitleStateDuration - 35)
 		{
-			anAlpha = TodAnimateCurve(mTitleStateDuration, mTitleStateDuration - 35, mTitleStateCounter, 0, 255, TodCurves::CURVE_LINEAR);
+			anAlpha = PvzpAnimateCurve(mTitleStateDuration, mTitleStateDuration - 35, mTitleStateCounter, 0, 255, PvzpCurves::CURVE_LINEAR);
 			g->SetColor(Color(255, 255, 255, 255 - anAlpha));
 			g->DrawImage(IMAGE_POPCAP_LOGO, (mWidth - IMAGE_POPCAP_LOGO->mWidth) / 2, (mHeight - IMAGE_POPCAP_LOGO->mHeight) / 2);
 		}
 		else
 		{
-			anAlpha = TodAnimateCurve(35, 0, mTitleStateCounter, 255, 0, TodCurves::CURVE_LINEAR);
+			anAlpha = PvzpAnimateCurve(35, 0, mTitleStateCounter, 255, 0, PvzpCurves::CURVE_LINEAR);
 		}
 		g->SetColor(Color(255, 255, 255, anAlpha));
 		g->DrawImage(IMAGE_PARTNER_LOGO, (mWidth - IMAGE_PARTNER_LOGO->mWidth) / 2, (mHeight - IMAGE_PARTNER_LOGO->mHeight) / 2);
@@ -171,18 +165,18 @@ void TitleScreen::Draw(Graphics* g)
 	int aLogoY;
 	if (mTitleStateCounter > 60)
 	{
-		aLogoY = TodAnimateCurve(100, 60, mTitleStateCounter, -150, 10, CURVE_EASE_IN);
+		aLogoY = PvzpAnimateCurve(100, 60, mTitleStateCounter, -150, 10, CURVE_EASE_IN);
 	}
 	else
 	{
-		aLogoY = TodAnimateCurve(60, 50, mTitleStateCounter, 10, 15, CURVE_BOUNCE);
+		aLogoY = PvzpAnimateCurve(60, 50, mTitleStateCounter, 10, 15, CURVE_BOUNCE);
 	}
 	g->DrawImage(IMAGE_PVZ_LOGO, mWidth / 2 - IMAGE_PVZ_LOGO->mWidth / 2, aLogoY);
 
 	int aGrassX = mStartButton->mX;
 	int aGrassY = mStartButton->mY - 17;
 
-	//Sexy::PrintF("%d %d\n", aGrassX, aGrassY);
+	//Sexy::LogInfoLn("{} {}\n", aGrassX, aGrassY);
 	g->DrawImage(IMAGE_LOADBAR_DIRT, aGrassX, aGrassY + 18);
 
 	if (mCurBarWidth >= mTotalBarWidth)
@@ -202,21 +196,19 @@ void TitleScreen::Draw(Graphics* g)
 
 		float aRollLen = mCurBarWidth * 0.94f;
 		float aRotation = -aRollLen / 180 * PI * 2;
-		float aScale = TodAnimateCurveFloatTime(0, mTotalBarWidth, mCurBarWidth, 1, 0.5f, TodCurves::CURVE_LINEAR);
+		float aScale = PvzpAnimateCurveFloatTime(0, mTotalBarWidth, mCurBarWidth, 1, 0.5f, PvzpCurves::CURVE_LINEAR);
 		SexyTransform2D aTransform;
-		TodScaleRotateTransformMatrix(aTransform, aGrassX + 11.0f + aRollLen, aGrassY - 3.0f - 35.0f * aScale + 35.0f, aRotation, aScale, aScale);
+		PvzpScaleRotateTransformMatrix(aTransform, aGrassX + 11.0f + aRollLen, aGrassY - 3.0f - 35.0f * aScale + 35.0f, aRotation, aScale, aScale);
 		Rect aSrcRect(0, 0, IMAGE_REANIM_SODROLLCAP->mWidth, IMAGE_REANIM_SODROLLCAP->mHeight);
-		TodBltMatrix(g, IMAGE_REANIM_SODROLLCAP, aTransform, g->mClipRect, Color::White, g->mDrawMode, aSrcRect);
+		PvzpBltMatrix(g, IMAGE_REANIM_SODROLLCAP, aTransform, g->mClipRect, Color::White, g->mDrawMode, aSrcRect);
 	}
 
-	Reanimation* aReanim = nullptr;
-	while (mApp->mEffectSystem->mReanimationHolder->mReanimations.IterateNext(aReanim))
+	for (Reanimation* aReanim : mApp->mEffectSystem->mReanimationHolder->mReanimations)
 	{
 		aReanim->Draw(g);
 	}
 }
 
-// GOTY @Patoke: 0x498A20
 void TitleScreen::Update()
 {
 	Widget::Update();
@@ -245,7 +237,7 @@ void TitleScreen::Update()
 		{
 			mTitleStateDuration = 200;
 		}
-		
+
 		mTitleStateCounter = mTitleStateDuration;
 	}
 
@@ -304,7 +296,7 @@ void TitleScreen::Update()
 	{
 		mNeedToInit = false;
 
-		mStartButton->mLabel = TodStringTranslate("[LOADING]");
+		mStartButton->mLabel = PvzpStringTranslate("[LOADING]");
 		mStartButton->SetFont(FONT_BRIANNETOD16);
 		mStartButton->Resize((mWidth - IMAGE_LOADBAR_DIRT->mWidth) / 2, 650, mTotalBarWidth, 50);
 		mStartButton->mVisible = true;
@@ -320,7 +312,7 @@ void TitleScreen::Update()
 		}
 
 		float aLoadTime = aEstimatedTotalLoadTime * (1 - aCurrentProgress);
-		aLoadTime = ClampFloat(aLoadTime, 100, 3000);
+		aLoadTime = std::clamp(aLoadTime, 100.0f, 3000.0f);
 		mBarVel = mTotalBarWidth / aLoadTime;
 		mBarStartProgress = std::min(aCurrentProgress, 0.9f);
 	}
@@ -330,11 +322,11 @@ void TitleScreen::Update()
 	int aButtonY;
 	if (mTitleStateCounter > 10)
 	{
-		aButtonY = TodAnimateCurve(60, 10, mTitleStateCounter, 650, 534, TodCurves::CURVE_EASE_IN);
+		aButtonY = PvzpAnimateCurve(60, 10, mTitleStateCounter, 650, 534, PvzpCurves::CURVE_EASE_IN);
 	}
 	else
 	{
-		aButtonY = TodAnimateCurve(10, 0, mTitleStateCounter, 534, 529, TodCurves::CURVE_BOUNCE);
+		aButtonY = PvzpAnimateCurve(10, 0, mTitleStateCounter, 534, 529, PvzpCurves::CURVE_BOUNCE);
 	}
 	mStartButton->Resize(mStartButton->mX, aButtonY, mTotalBarWidth, mStartButton->mHeight);
 
@@ -356,24 +348,24 @@ void TitleScreen::Update()
 	}
 	else if (mCurBarWidth > mTotalBarWidth)
 	{
-		mStartButton->mLabel = TodStringTranslate("[CLICK_TO_START]");
+		mStartButton->mLabel = PvzpStringTranslate("[CLICK_TO_START]");
 		mCurBarWidth = mTotalBarWidth;
 	}
 
 	if (aLoadingPercent > mPrevLoadingPercent + 0.01f || mLoadingThreadComplete)
 	{
-		float aBarWidth = TodAnimateCurveFloatTime(0, 1, aLoadingPercent, 0, mTotalBarWidth, TodCurves::CURVE_EASE_IN);
+		float aBarWidth = PvzpAnimateCurveFloatTime(0, 1, aLoadingPercent, 0, mTotalBarWidth, PvzpCurves::CURVE_EASE_IN);
 		float aDiff = aBarWidth - mCurBarWidth;
-		float aAcceleration = TodAnimateCurveFloatTime(0, 1, aLoadingPercent, 0.0001f, 0.00001f, TodCurves::CURVE_LINEAR);
+		float aAcceleration = PvzpAnimateCurveFloatTime(0, 1, aLoadingPercent, 0.0001f, 0.00001f, PvzpCurves::CURVE_LINEAR);
 		if (mLoadingThreadComplete)
 		{
 			aAcceleration = 0.0001f;
 		}
 		mBarVel += aDiff * abs(aDiff) * aAcceleration;
 
-		float aMinVelocity = TodAnimateCurveFloatTime(0, 1, aLoadingPercent, 0.2f, 0.01f, TodCurves::CURVE_LINEAR);
+		float aMinVelocity = PvzpAnimateCurveFloatTime(0, 1, aLoadingPercent, 0.2f, 0.01f, PvzpCurves::CURVE_LINEAR);
 		float aMaxVelocity = 2;
-		if (mApp->mTodCheatKeys)
+		if (mApp->mCheatKeys)
 		{
 			aMinVelocity = 0;
 			aMaxVelocity = 100;
@@ -391,7 +383,7 @@ void TitleScreen::Update()
 		mPrevLoadingPercent = aLoadingPercent;
 	}
 
-	if (!mLoadingThreadComplete && mApp->mLoadingThreadCompleted)
+	if (!mLoadingThreadComplete && (mApp->IsInDemoMode() ? mApp->mLoaded : mApp->mLoadingThreadCompleted.load()))
 	{
 		mLoadingThreadComplete = true;
 		mStartButton->SetDisabled(false);
@@ -440,7 +432,7 @@ void TitleScreen::Update()
 			mApp->KillGameSelector();
 			mApp->ShowCreditScreen();
 		}
-		else if (mApp->mTodCheatKeys && mApp->mPlayerInfo && mQuickLoadKey == (KeyCode)0x54)
+		else if (mApp->mCheatKeys && mApp->mPlayerInfo && mQuickLoadKey == (KeyCode)0x54)
 		{
 			mApp->FastLoad(GameMode::GAMEMODE_ADVENTURE);
 		}
@@ -450,12 +442,12 @@ void TitleScreen::Update()
 		}
 	}
 
-	float aTriggerPoint[] = { 
-		mTotalBarWidth * 0.11f, 
-		mTotalBarWidth * 0.32f, 
-		mTotalBarWidth * 0.54f, 
-		mTotalBarWidth * 0.72f, 
-		mTotalBarWidth * 0.91f 
+	float aTriggerPoint[] = {
+		mTotalBarWidth * 0.11f,
+		mTotalBarWidth * 0.32f,
+		mTotalBarWidth * 0.54f,
+		mTotalBarWidth * 0.72f,
+		mTotalBarWidth * 0.91f
 	};
 
 	for (size_t i = 0; i < LENGTH(aTriggerPoint); i++)
@@ -508,18 +500,17 @@ void TitleScreen::Resize(int theX, int theY, int theWidth, int theHeight)
 void TitleScreen::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Widget::AddedToManager(theWidgetManager);
-	theWidgetManager->AddWidget(mStartButton);
+	theWidgetManager->AddWidget(mStartButton.get());
 }
 
 void TitleScreen::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
 	Widget::RemovedFromManager(theWidgetManager);
-	theWidgetManager->RemoveWidget(mStartButton);
+	theWidgetManager->RemoveWidget(mStartButton.get());
 }
 
-void TitleScreen::ButtonPress(int theId)
+void TitleScreen::ButtonPress([[maybe_unused]] int theId)
 {
-	(void)theId;
 	mApp->PlaySample(Sexy::SOUND_BUTTONCLICK);
 }
 
@@ -537,9 +528,8 @@ void TitleScreen::ButtonDepress(int theId)
 	}
 }
 
-void TitleScreen::MouseDown(int x, int y, int theClickCount)
+void TitleScreen::MouseDown([[maybe_unused]] int x, [[maybe_unused]] int y, [[maybe_unused]] int theClickCount)
 {
-	(void)x;(void)y;(void)theClickCount;
 	if (mLoadingThreadComplete)
 	{
 		mApp->PlaySample(Sexy::SOUND_BUTTONCLICK);
@@ -555,7 +545,7 @@ void TitleScreen::KeyDown(KeyCode theKey)
 		mApp->LoadingCompleted();
 	}
 
-	if (mApp->mTodCheatKeys && mApp->mPlayerInfo)
+	if (mApp->mCheatKeys && mApp->mPlayerInfo)
 	{
 		mQuickLoadKey = theKey;
 	}

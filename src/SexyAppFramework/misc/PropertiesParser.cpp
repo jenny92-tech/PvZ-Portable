@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -25,6 +25,7 @@
 #include "PropertiesParser.h"
 #include "XMLParser.h"
 #include <stdlib.h>
+#include <format>
 
 using namespace Sexy;
 
@@ -32,7 +33,6 @@ PropertiesParser::PropertiesParser(SexyAppBase* theApp)
 {
 	mApp = theApp;
 	mHasFailed = false;
-	mXMLParser = nullptr;
 }
 
 void PropertiesParser::Fail(const std::string& theErrorText)
@@ -43,8 +43,8 @@ void PropertiesParser::Fail(const std::string& theErrorText)
 		int aLineNum = mXMLParser->GetCurrentLineNum();
 
 		mError = theErrorText;
-		if (aLineNum > 0) mError += StrFormat(" on Line %d", aLineNum);
-		if (!mXMLParser->GetFileName().empty()) mError += StrFormat(" in File '%s'", mXMLParser->GetFileName().c_str());
+		if (aLineNum > 0) mError += std::format(" on Line {}", aLineNum);
+		if (!mXMLParser->GetFileName().empty()) mError += std::format(" in File '{}'", mXMLParser->GetFileName());
 	}
 }
 
@@ -63,16 +63,16 @@ bool PropertiesParser::ParseSingleElement(std::string* aString)
 		XMLElement aXMLElement;
 		if (!mXMLParser->NextElement(&aXMLElement))
 			return false;
-		
+
 		if (aXMLElement.mType == XMLElement::TYPE_START)
 		{
 			Fail("Unexpected Section: '" + aXMLElement.mValue + "'");
-			return false;			
+			return false;
 		}
 		else if (aXMLElement.mType == XMLElement::TYPE_ELEMENT)
 		{
 			*aString = aXMLElement.mValue;
-		}		
+		}
 		else if (aXMLElement.mType == XMLElement::TYPE_END)
 		{
 			return true;
@@ -89,7 +89,7 @@ bool PropertiesParser::ParseStringArray(std::vector<std::string>* theStringVecto
 		XMLElement aXMLElement;
 		if (!mXMLParser->NextElement(&aXMLElement))
 			return false;
-		
+
 		if (aXMLElement.mType == XMLElement::TYPE_START)
 		{
 			if (aXMLElement.mValue == "String")
@@ -111,7 +111,7 @@ bool PropertiesParser::ParseStringArray(std::vector<std::string>* theStringVecto
 		{
 			Fail("Element Not Expected '" + aXMLElement.mValue + "'");
 			return false;
-		}		
+		}
 		else if (aXMLElement.mType == XMLElement::TYPE_END)
 		{
 			return true;
@@ -127,11 +127,11 @@ bool PropertiesParser::ParseProperties()
 		XMLElement aXMLElement;
 		if (!mXMLParser->NextElement(&aXMLElement))
 			return false;
-		
+
 		if (aXMLElement.mType == XMLElement::TYPE_START)
 		{
 			if (aXMLElement.mValue == "String")
-			{				
+			{
 				std::string aDef;
 				if (!ParseSingleElement(&aDef))
 					return false;
@@ -220,7 +220,7 @@ bool PropertiesParser::ParseProperties()
 		{
 			Fail("Element Not Expected '" + aXMLElement.mValue + "'");
 			return false;
-		}		
+		}
 		else if (aXMLElement.mType == XMLElement::TYPE_END)
 		{
 			return true;
@@ -245,7 +245,7 @@ bool PropertiesParser::DoParseProperties()
 					if (!ParseProperties())
 						break;
 				}
-				else 
+				else
 				{
 					Fail("Invalid Section '" + aXMLElement.mValue + "'");
 					break;
@@ -260,17 +260,16 @@ bool PropertiesParser::DoParseProperties()
 	}
 
 	if (mXMLParser->HasFailed())
-		Fail(mXMLParser->GetErrorText());	
+		Fail(mXMLParser->GetErrorText());
 
-	delete mXMLParser;
-	mXMLParser = nullptr;
+	mXMLParser.reset();
 
 	return !mHasFailed;
 }
 
 bool PropertiesParser::ParsePropertiesBuffer(const Buffer& theBuffer)
 {
-	mXMLParser = new XMLParser();
+	mXMLParser = std::make_unique<XMLParser>();
 
 	std::string aString;
 	if (!theBuffer.ToUTF8String(&aString))
@@ -285,9 +284,9 @@ bool PropertiesParser::ParsePropertiesBuffer(const Buffer& theBuffer)
 
 bool PropertiesParser::ParsePropertiesFile(const std::string& theFilename)
 {
-	mXMLParser = new XMLParser();
+	mXMLParser = std::make_unique<XMLParser>();
 	mXMLParser->OpenFile(theFilename);
-	return DoParseProperties();	
+	return DoParseProperties();
 }
 
 std::string PropertiesParser::GetErrorText()

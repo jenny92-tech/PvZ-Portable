@@ -24,7 +24,9 @@
 
 #include "../ConstEnums.h"
 #include "graphics/Graphics.h"
-#include "widget//EditWidget.h"
+#include "widget/EditWidget.h"
+#include <memory>
+#include <time.h>
 
 using namespace Sexy;
 // using namespace std;
@@ -52,32 +54,25 @@ public:
 
 	void					KeyDown(KeyCode theKey) override;
 	void					KeyChar(char theChar) override;
+	void					KeyText(std::string_view theText) override;
 };
 
-// ====================================================================================================
-// ★ 常用逻辑判断
-// ====================================================================================================
-/*inline*/ bool				ModInRange(int theNumber, int theMod, int theRange = 0);
-/*inline*/ bool				GridInRange(int x1, int y1, int x2, int y2, int theRangeX = 1, int theRangeY = 1);
+// Logic checks
+bool				ModInRange(int theNumber, int theMod, int theRange = 0);
+bool				GridInRange(int x1, int y1, int x2, int y2, int theRangeX = 1, int theRangeY = 1);
 
-// ====================================================================================================
-// ★ 动画、特效与绘制相关
-// ====================================================================================================
-/*inline*/ void				TileImageHorizontally(Graphics* g, Image* theImage, int theX, int theY, int theWidth);
-/*inline*/ void				TileImageVertically(Graphics* g, Image* theImage, int theX, int theY, int theHeight);
+// Animation, effects and drawing
+void				TileImageHorizontally(Graphics* g, Image* theImage, int theX, int theY, int theWidth);
+void				TileImageVertically(Graphics* g, Image* theImage, int theX, int theY, int theHeight);
 
-// ====================================================================================================
-// ★ 控件
-// ====================================================================================================
-Checkbox*					MakeNewCheckbox(int theId, CheckboxListener* theListener, bool theDefault);
-LawnEditWidget*				CreateEditWidget(int theId, EditListener* theListener, Dialog* theDialog);
+// Widgets
+std::unique_ptr<Checkbox>	MakeNewCheckbox(int theId, CheckboxListener* theListener, bool theDefault);
+std::unique_ptr<LawnEditWidget>	CreateEditWidget(int theId, EditListener* theListener, Dialog* theDialog);
 void						DrawEditBox(Graphics* g, EditWidget* theWidget);
 
-// ====================================================================================================
-// ★ 其他
-// ====================================================================================================
+// Miscellaneous
 std::string					GetSavedGameName(GameMode theGameMode, int theProfileId);
 std::string					GetLegacySavedGameName(GameMode theGameMode, int theProfileId);
-int							GetCurrentDaysSince2000();
+int							GetCurrentDaysSince2000(time_t theTime);
 
 #endif

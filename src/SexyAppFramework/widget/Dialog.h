@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -27,6 +27,7 @@
 
 #include "Widget.h"
 #include "ButtonListener.h"
+#include <memory>
 
 namespace Sexy
 {
@@ -40,6 +41,17 @@ extern std::string DIALOG_YES_STRING;
 extern std::string DIALOG_NO_STRING;
 extern std::string DIALOG_OK_STRING;
 extern std::string DIALOG_CANCEL_STRING;
+
+struct DialogColorScheme
+{
+	Color					mHeader;
+	Color					mLines;
+	Color					mFooter;
+	Color					mButtonText;
+	Color					mButtonTextHilite;
+	Color					mBkg;
+	Color					mOutline;
+};
 
 class Dialog : public Widget, public ButtonListener
 {
@@ -60,32 +72,21 @@ public:
 		ID_CANCEL	= 1001,
 		ID_FOOTER	= 1000
 	};
-	
-	enum
-	{
-		COLOR_HEADER = 0,
-		COLOR_LINES,
-		COLOR_FOOTER,
-		COLOR_BUTTON_TEXT,
-		COLOR_BUTTON_TEXT_HILITE,
-		COLOR_BKG,
-		COLOR_OUTLINE,		
-		NUM_COLORS
-	};
 
 	DialogListener*			mDialogListener;
-	Image*					mComponentImage;	
-	DialogButton*			mYesButton;
-	DialogButton*			mNoButton;
+	Image*					mComponentImage;
+	DialogColorScheme		mColors;
+	std::unique_ptr<DialogButton>	mYesButton;
+	std::unique_ptr<DialogButton>	mNoButton;
 	int						mNumButtons;
-	
+
 	std::string				mDialogHeader;
 	std::string				mDialogFooter;
 	std::string				mDialogLines;
 
 	int						mButtonMode;
-	_Font*					mHeaderFont;
-	_Font*					mLinesFont;	
+	std::unique_ptr<_Font>		mHeaderFont;
+	std::unique_ptr<_Font>		mLinesFont;
 	int						mTextAlign;
 	int						mLineSpacingOffset;
 	int						mButtonHeight;
@@ -97,17 +98,17 @@ public:
 	int						mDragMouseY;
 	int						mId;
 	bool					mIsModal;
-	int						mResult;	
+	int						mResult;
 
 	int						mButtonHorzSpacing;
 	int						mButtonSidePadding;
-	
+
 
 public:
 	void					EnsureFonts();
 
 public:
-	Dialog(Image* theComponentImage, Image* theButtonComponentImage, 
+	Dialog(Image* theComponentImage, Image* theButtonComponentImage,
 		int theId, bool isModal, const std::string& theDialogHeader, const std::string& theDialogLines, const std::string& theDialogFooter, int theButtonMode); //UNICODE
 
 	~Dialog() override;
@@ -116,7 +117,11 @@ public:
 	virtual void			SetHeaderFont(_Font* theFont);
 	virtual void			SetLinesFont(_Font* theFont);
 
-	void					SetColor(int theIdx, const Color& theColor) override;
+	virtual void			SetColors(const DialogColorScheme& theColors);
+	virtual void			SetHeaderColor(const Color& theColor);
+	virtual void			SetLinesColor(const Color& theColor);
+	virtual void			SetButtonTextColor(const Color& theColor);
+	virtual void			SetButtonTextHiliteColor(const Color& theColor);
 	virtual int				GetPreferredHeight(int theWidth);
 
 	void					Draw(Graphics* g) override;

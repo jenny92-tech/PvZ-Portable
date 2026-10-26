@@ -29,11 +29,14 @@
 #include "../../GameConstants.h"
 #include "widget/WidgetManager.h"
 
-ImitaterDialog::ImitaterDialog() : 
+constexpr const int IMITATER_DIALOG_WIDTH = 500;
+constexpr const int IMITATER_DIALOG_HEIGHT = 600;
+
+ImitaterDialog::ImitaterDialog() :
 	LawnDialog(gLawnApp, Dialogs::DIALOG_IMITATER, true, "[CHOOSE_SEED_TO_COPY]", "", "[DIALOG_BUTTON_OK]", Dialog::BUTTONS_YES_NO)
 {
 	CalcSize(IMITATER_DIALOG_WIDTH - mWidth, IMITATER_DIALOG_HEIGHT - mHeight);
-	mToolTip = new ToolTipWidget();
+	mToolTip = std::make_unique<ToolTipWidget>();
 	mClip = false;
 	mToolTipSeed = SeedType::SEED_NONE;
 	mLawnYesButton->mBtnNoDraw = true;
@@ -42,10 +45,7 @@ ImitaterDialog::ImitaterDialog() :
 	mLawnNoButton->mMouseVisible = false;
 }
 
-ImitaterDialog::~ImitaterDialog()
-{
-	delete mToolTip;
-}
+ImitaterDialog::~ImitaterDialog() = default;
 
 SeedType ImitaterDialog::SeedHitTest(int x, int y)
 {
@@ -114,7 +114,7 @@ void ImitaterDialog::ShowToolTip()
 		RemoveToolTip();
 		return;
 	}
-	
+
 	SeedType aSeedType = SeedHitTest(mApp->mWidgetManager->mLastMouseX - mX, mApp->mWidgetManager->mLastMouseY - mY);
 	if (aSeedType == SeedType::SEED_NONE)
 	{
@@ -124,11 +124,11 @@ void ImitaterDialog::ShowToolTip()
 	{
 		RemoveToolTip();
 		uint aRecFlags = mApp->mSeedChooserScreen->SeedNotRecommendedToPick(aSeedType);
-		if (mApp->mSeedChooserScreen->SeedNotAllowedToPick(aSeedType))  // 如果不能携带
+		if (mApp->mSeedChooserScreen->SeedNotAllowedToPick(aSeedType))
 		{
 			mToolTip->SetWarningText("[NOT_ALLOWED_ON_THIS_LEVEL]");
 		}
-		else if (aRecFlags)  // 如果不推荐携带
+		else if (aRecFlags)
 		{
 			if (TestBit(aRecFlags, NotRecommend::NOT_RECOMMENDED_NOCTURNAL))
 			{
@@ -166,7 +166,7 @@ void ImitaterDialog::MouseDown(int x, int y, int theClickCount)
 	SeedType aSeedType = SeedHitTest(x, y);
 	if (aSeedType != SeedType::SEED_NONE)
 	{
-		SeedChooserScreen* aSeedChooser = mApp->mSeedChooserScreen;
+		SeedChooserScreen* aSeedChooser = mApp->mSeedChooserScreen.get();
 		if (!aSeedChooser->SeedNotAllowedToPick(aSeedType))
 		{
 			ChosenSeed& aImitater = aSeedChooser->mChosenSeeds[SeedType::SEED_IMITATER];

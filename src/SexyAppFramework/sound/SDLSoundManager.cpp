@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -25,6 +25,7 @@
 #include "SDLSoundManager.h"
 #include "SDLSoundInstance.h"
 #include "paklib/PakInterface.h"
+#include <memory>
 #include <vector>
 
 using namespace Sexy;
@@ -47,18 +48,15 @@ SDLSoundManager::SDLSoundManager()
 		mBasePans[i] = 0;
 	}
 
-	for (i = 0; i < MAX_CHANNELS; i++)
-		mPlayingSounds[i] = nullptr;
-
 	if (SDL_InitSubSystem(SDL_INIT_AUDIO))
-    {
-		Sexy::PrintF("Failed to initialize SDL audio subsystem\n");
+	{
+		Sexy::LogInfoLn("Failed to initialize SDL audio subsystem");
 		return;
-    }
+	}
 
 	if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 2048))
 	{
-		Sexy::PrintF("Failed to initialize SDL mixer\n");
+		Sexy::LogInfoLn("Failed to initialize SDL mixer");
 		return;
 	}
 	mInitializedMixer = true;
@@ -69,6 +67,8 @@ SDLSoundManager::SDLSoundManager()
 
 SDLSoundManager::~SDLSoundManager()
 {
+	// Must precede Mix_CloseAudio(): ~SDLSoundInstance calls mixer functions
+	ReleaseChannels();
 	if (mInitializedMixer)
 		Mix_CloseAudio();
 
@@ -83,45 +83,43 @@ bool SDLSoundManager::Initialized()
 
 bool SDLSoundManager::LoadAUSound(intptr_t theSfxID, const std::string& theFilename)
 {
-	PFILE* fp;
-
-	fp = p_fopen(theFilename.c_str(), "rb");
+	std::unique_ptr<PFILE, decltype(&p_fclose)> fp(p_fopen(theFilename.c_str(), "rb"), &p_fclose);
 
 	if (fp == nullptr)
-		return false;	
+		return false;
 
-	char aHeaderId[5];	
-	aHeaderId[4] = '\0';	
-	p_fread(aHeaderId, 1, 4, fp);	
+	char aHeaderId[5];
+	aHeaderId[4] = '\0';
+	p_fread(aHeaderId, 1, 4, fp.get());
 	if ((!strcmp(aHeaderId, ".snd")) == 0)
 		return false;
 
-	uint32_t aHeaderSize;	
-	p_fread(&aHeaderSize, 4, 1, fp);
+	uint32_t aHeaderSize;
+	p_fread(&aHeaderSize, 4, 1, fp.get());
 	aHeaderSize = FromBE32(aHeaderSize);
 
 	uint32_t aDataSize;
-	p_fread(&aDataSize, 4, 1, fp);
+	p_fread(&aDataSize, 4, 1, fp.get());
 	aDataSize = FromBE32(aDataSize);
 
 	uint32_t anEncoding;
-	p_fread(&anEncoding, 4, 1, fp);
+	p_fread(&anEncoding, 4, 1, fp.get());
 	anEncoding = FromBE32(anEncoding);
 
 	uint32_t aSampleRate;
-	p_fread(&aSampleRate, 4, 1, fp);
+	p_fread(&aSampleRate, 4, 1, fp.get());
 	aSampleRate = FromBE32(aSampleRate);
 
 	uint32_t aChannelCount;
-	p_fread(&aChannelCount, 4, 1, fp);
+	p_fread(&aChannelCount, 4, 1, fp.get());
 	aChannelCount = FromBE32(aChannelCount);
 
-	p_fseek(fp, aHeaderSize, SEEK_SET);	
+	p_fseek(fp.get(), aHeaderSize, SEEK_SET);
 
 	bool ulaw = false;
 
 	uint32_t aSrcBitCount = 8;
-	uint32_t aBitCount = 16;			
+	uint32_t aBitCount = 16;
 	switch (anEncoding)
 	{
 	case 1:
@@ -133,10 +131,10 @@ bool SDLSoundManager::LoadAUSound(intptr_t theSfxID, const std::string& theFilen
 		aSrcBitCount = 8;
 		aBitCount = 8;
 		break;
-	
+
 	/*
 	Support these formats?
-	
+
 	case 3:
 		aBitCount = 16;
 		break;
@@ -148,21 +146,20 @@ bool SDLSoundManager::LoadAUSound(intptr_t theSfxID, const std::string& theFilen
 		break;*/
 
 	default:
-		return false;		
+		return false;
 	}
 
 	uint32_t aDestSize = aDataSize * aBitCount/aSrcBitCount;
 
-	Mix_Chunk* aMixChunk = (Mix_Chunk *)SDL_malloc(sizeof(Mix_Chunk));
-	uint8_t* aDest = (uint8_t*)SDL_malloc(aDestSize);
-	uint8_t* aSrcBuffer = (uint8_t*)malloc(aDataSize);
-	
-	uint32_t aReadSize = p_fread(aSrcBuffer, 1, aDataSize, fp);
-	p_fclose(fp);
+	std::unique_ptr<Mix_Chunk, decltype(&SDL_free)> aMixChunk((Mix_Chunk*)SDL_malloc(sizeof(Mix_Chunk)), &SDL_free);
+	std::unique_ptr<uint8_t, decltype(&SDL_free)> aDest((uint8_t*)SDL_malloc(aDestSize), &SDL_free);
+	std::vector<uint8_t> aSrcBuffer(aDataSize);
+
+	uint32_t aReadSize = p_fread(aSrcBuffer.data(), 1, aDataSize, fp.get());
 
 	if (ulaw)
 	{
-		short* aDestBuffer = (short*)aDest;
+		short* aDestBuffer = (short*)aDest.get();
 
 		for (ulong i = 0; i < aDataSize; i++)
 		{
@@ -187,20 +184,16 @@ bool SDLSoundManager::LoadAUSound(intptr_t theSfxID, const std::string& theFilen
 			else if (ch > 128)
 				ch = (((0x80 | 15) - ch) * 256) + 4064;
 			else
-				ch = 0xff;			
+				ch = 0xff;
 
 			aDestBuffer[i] = sign * ch * 4;
-		}		
+		}
 	}
 	else
-		memcpy(aDest, aSrcBuffer, aDataSize);
-
-	free(aSrcBuffer);
+		memcpy(aDest.get(), aSrcBuffer.data(), aDataSize);
 
 	if (aReadSize != aDataSize)
 	{
-		SDL_free(aMixChunk);
-		SDL_free(aDest);
 		return false;
 	}
 
@@ -216,43 +209,41 @@ bool SDLSoundManager::LoadAUSound(intptr_t theSfxID, const std::string& theFilen
 			srcformat, srcchannels, srcfreq,
 			format, channels, freq) < 0)
 	{
-		SDL_free(aMixChunk);
-		SDL_free(aDest);
 		return false;
 	}
-	uint32_t samplesize = ((srcfreq & 0xFF)/8)*srcchannels;
+	uint32_t samplesize = ((srcformat & 0xFF)/8)*srcchannels;
 	wavecvt.len = aDestSize & ~(samplesize - 1);
 	wavecvt.buf = (uint8_t*)SDL_calloc(1, wavecvt.len*wavecvt.len_mult);
+	std::unique_ptr<uint8_t, decltype(&SDL_free)> aBufGuard(wavecvt.buf, &SDL_free);
 	if (wavecvt.buf == nullptr)
 	{
 		Mix_OutOfMemory();
-		SDL_free(aMixChunk);
-		SDL_free(aDest);
 		return false;
 	}
-	SDL_memcpy(wavecvt.buf, aDest, wavecvt.len);
-	SDL_free(aDest);
+	SDL_memcpy(wavecvt.buf, aDest.get(), wavecvt.len);
+	aDest.reset();
 
 	// Run the audio converter
 	if (SDL_ConvertAudio(&wavecvt) < 0) {
-		SDL_free(wavecvt.buf);
-		SDL_free(aMixChunk);
 		return false;
 	}
 
-	aDest = (uint8_t*)SDL_realloc(wavecvt.buf, wavecvt.len_cvt);
-	if (aDest == nullptr) {
-		aMixChunk->abuf = wavecvt.buf;
+	uint8_t* aResized = (uint8_t*)SDL_realloc(aBufGuard.get(), wavecvt.len_cvt);
+	if (aResized == nullptr) {
+		aMixChunk->abuf = aBufGuard.release();
 	} else {
-		aMixChunk->abuf = aDest;
+		aBufGuard.release();
+		aMixChunk->abuf = aResized;
 	}
 	aMixChunk->alen = wavecvt.len_cvt;
 	aMixChunk->allocated = 1;
 	aMixChunk->volume = 128;
 
-	mSourceSounds[theSfxID] = aMixChunk;
+	mSourceSounds[theSfxID] = aMixChunk.release();
 	return true;
 }
+
+constexpr const char* gSoundFormats[] = {".wav", ".mp3", ".ogg"};
 
 bool SDLSoundManager::LoadSound(intptr_t theSfxID, const std::string& theFilename)
 {
@@ -265,10 +256,33 @@ bool SDLSoundManager::LoadSound(intptr_t theSfxID, const std::string& theFilenam
 		return true;
 
 	mSourceFileNames[theSfxID] = theFilename;
-	const char* formats[] = {".wav", ".mp3", ".ogg"};
-	for (int i=0; i<3; i++)
+
+#ifdef LOW_MEMORY
+	for (const char* aFormat : gSoundFormats)
 	{
-		std::string aFilename = theFilename + formats[i];
+		if (PFILE* fp = p_fopen((theFilename + aFormat).c_str(), "rb"))
+		{
+			p_fclose(fp);
+			return true;
+		}
+	}
+	if (PFILE* fp = p_fopen((theFilename + ".au").c_str(), "rb"))
+	{
+		p_fclose(fp);
+		return true;
+	}
+	mSourceFileNames[theSfxID].clear();
+	return false;
+#else
+	return DecodeSound(theSfxID, theFilename);
+#endif
+}
+
+bool SDLSoundManager::DecodeSound(intptr_t theSfxID, const std::string& theFilename)
+{
+	for (const char* aFormat : gSoundFormats)
+	{
+		std::string aFilename = theFilename + aFormat;
 
 		PFILE *fp = p_fopen(aFilename.c_str(), "rb");
 		if (!fp)
@@ -300,15 +314,19 @@ intptr_t SDLSoundManager::LoadSound(const std::string& theFilename)
 			return i;
 
 	for (i = MAX_SOURCE_SOUNDS-1; i >= 0; i--)
-	{		
+	{
+#ifdef LOW_MEMORY
+		if (mSourceSounds[i] == nullptr && mSourceFileNames[i].empty())
+#else
 		if (mSourceSounds[i] == nullptr)
+#endif
 		{
 			if (!LoadSound(i, theFilename))
 				return -1;
 			else
 				return i;
 		}
-	}	
+	}
 
 	return -1;
 }
@@ -322,8 +340,8 @@ void SDLSoundManager::ReleaseSound(intptr_t theSfxID)
 	{
 		Mix_FreeChunk(mSourceSounds[theSfxID]);
 		mSourceSounds[theSfxID] = nullptr;
-		mSourceFileNames[theSfxID] = "";
 	}
+	mSourceFileNames[theSfxID] = "";
 }
 
 void SDLSoundManager::SetVolume(double theVolume)
@@ -363,14 +381,21 @@ SoundInstance* SDLSoundManager::GetSoundInstance(intptr_t theSfxID)
 		return nullptr;
 
 	if (mSourceSounds[theSfxID] == nullptr)
+	{
+#ifdef LOW_MEMORY
+		if (mSourceFileNames[theSfxID].empty() || !DecodeSound(theSfxID, mSourceFileNames[theSfxID]))
+			return nullptr;
+#else
 		return nullptr;
+#endif
+	}
 
-	mPlayingSounds[aFreeChannel] = new SDLSoundInstance(this, mSourceSounds[theSfxID], aFreeChannel);
+	mPlayingSounds[aFreeChannel] = std::make_unique<SDLSoundInstance>(this, mSourceSounds[theSfxID], aFreeChannel);
 
 	mPlayingSounds[aFreeChannel]->SetBasePan(mBasePans[theSfxID]);
 	mPlayingSounds[aFreeChannel]->SetBaseVolume(mBaseVolumes[theSfxID]);
 
-	return mPlayingSounds[aFreeChannel];
+	return mPlayingSounds[aFreeChannel].get();
 }
 
 void SDLSoundManager::ReleaseSounds()
@@ -382,19 +407,14 @@ void SDLSoundManager::ReleaseSounds()
 			Mix_FreeChunk(mSourceSounds[i]);
 			mSourceSounds[i] = nullptr;
 		}
+		mSourceFileNames[i] = "";
 	}
 }
 
 void SDLSoundManager::ReleaseChannels()
 {
 	for (int i = 0; i < MAX_CHANNELS; i++)
-	{
-		if (mPlayingSounds[i] != nullptr)
-		{
-			delete mPlayingSounds[i];
-			mPlayingSounds[i] = nullptr;
-		}
-	}
+		mPlayingSounds[i].reset();
 }
 
 double SDLSoundManager::GetMasterVolume()
@@ -409,7 +429,7 @@ void SDLSoundManager::SetMasterVolume(double theVolume)
 
 void SDLSoundManager::Flush()
 {
-	
+
 }
 
 void SDLSoundManager::StopAllSounds()
@@ -429,7 +449,11 @@ intptr_t SDLSoundManager::GetFreeSoundId()
 {
 	for (intptr_t i=0; i<MAX_SOURCE_SOUNDS; i++)
 	{
+#ifdef LOW_MEMORY
+		if (mSourceSounds[i]==nullptr && mSourceFileNames[i].empty())
+#else
 		if (mSourceSounds[i]==nullptr)
+#endif
 			return i;
 	}
 
@@ -458,18 +482,17 @@ int SDLSoundManager::FindFreeChannel()
 	}
 
 	for (int i = 0; i < MAX_CHANNELS; i++)
-	{		
+	{
 		if (mPlayingSounds[i] == nullptr)
 			return i;
-		
+
 		if (mPlayingSounds[i]->IsReleased())
 		{
-			delete mPlayingSounds[i];
-			mPlayingSounds[i] = nullptr;
+			mPlayingSounds[i].reset();
 			return i;
 		}
 	}
-	
+
 	return -1;
 }
 
@@ -478,9 +501,6 @@ void SDLSoundManager::ReleaseFreeChannels()
 	for (int i = 0; i < MAX_CHANNELS; i++)
 	{
 		if (mPlayingSounds[i] != nullptr && mPlayingSounds[i]->IsReleased())
-		{
-			delete mPlayingSounds[i];
-			mPlayingSounds[i] = nullptr;
-		}
+			mPlayingSounds[i].reset();
 	}
 }

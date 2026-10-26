@@ -25,7 +25,7 @@
 #include <cstdint>
 #include "../ConstEnums.h"
 
-#define NUM_MOTION_TRAIL_FRAMES 12
+constexpr const int NUM_MOTION_TRAIL_FRAMES = 12;
 
 class LawnApp;
 class Board;
@@ -86,13 +86,12 @@ public:
 	void					DrawScaryPot(Sexy::Graphics* g);
 	void					UpdateScaryPot();
 	void					UpdatePortal();
-	void					DrawSquirrel(Sexy::Graphics* g);
 	void					UpdateRake();
 	Zombie*					RakeFindZombie();
 	void					DrawIZombieBrain(Sexy::Graphics* g);
 	void					UpdateBrain();
 	void					DrawStinky(Sexy::Graphics* g);
-	/*inline*/ bool			IsOpenPortal();
+	bool			IsOpenPortal();
 };
 
 #endif

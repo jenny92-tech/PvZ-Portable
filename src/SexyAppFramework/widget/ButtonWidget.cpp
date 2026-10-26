@@ -1,7 +1,7 @@
 /*
  * Portions of this file are based on the PopCap Games Framework
  * Copyright (C) 2005-2009 PopCap Games, Inc.
- * 
+ *
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
  * SPDX-License-Identifier: LGPL-3.0-or-later AND LicenseRef-PopCap
@@ -24,26 +24,16 @@
 
 #include "ButtonWidget.h"
 #include "graphics/Image.h"
-//#include "graphics/SysFont.h"
-#include "graphics/ImageFont.h"
+#include "graphics/Font.h"
 #include "WidgetManager.h"
 #include "ButtonListener.h"
-#include "../../Resources.h" // bad
+#include "SexyAppBase.h"
 
 using namespace Sexy;
 
-static int gButtonWidgetColors[][3] = {
-	{0, 0, 0},
-	{0, 0, 0},
-	{0, 0, 0},
-	{255, 255, 255},
-	{132, 132, 132},
-	{212, 212, 212}};
-
-ButtonWidget::ButtonWidget(int theId, ButtonListener* theButtonListener)	
+ButtonWidget::ButtonWidget(int theId, ButtonListener* theButtonListener)
 {
 	mId = theId;
-	mFont = nullptr;
 	mLabelJustify = BUTTON_LABEL_CENTER;
 	mButtonImage = nullptr;
 	mOverImage = nullptr;
@@ -59,18 +49,38 @@ ButtonWidget::ButtonWidget(int theId, ButtonListener* theButtonListener)
 	mOverAlphaSpeed = 0;
 	mOverAlphaFadeInSpeed = 0;
 
-	SetColors(gButtonWidgetColors, NUM_COLORS);
+	SetColors(gDefaultButtonColors);
 }
 
-ButtonWidget::~ButtonWidget()
-{
-	delete mFont;
-}
+ButtonWidget::~ButtonWidget() = default;
 
 void ButtonWidget::SetFont(_Font* theFont)
 {
-	delete mFont;
-	mFont = theFont->Duplicate();
+	mFont.reset(theFont->Duplicate());
+}
+
+void ButtonWidget::SetColors(const ButtonColorScheme& theColors)
+{
+	mColors = theColors;
+	MarkDirty();
+}
+
+void ButtonWidget::SetLabelColor(const Color& theColor)
+{
+	mColors.mLabel = theColor;
+	MarkDirty();
+}
+
+void ButtonWidget::SetLabelHiliteColor(const Color& theColor)
+{
+	mColors.mLabelHilite = theColor;
+	MarkDirty();
+}
+
+void ButtonWidget::SetBkgColor(const Color& theColor)
+{
+	mColors.mBkg = theColor;
+	MarkDirty();
 }
 
 bool ButtonWidget::IsButtonDown()
@@ -82,7 +92,7 @@ bool ButtonWidget::HaveButtonImage(Image *theImage, const Rect &theRect)
 {
 	return (theImage!=nullptr || theRect.mWidth!=0);
 }
-	
+
 void ButtonWidget::DrawButtonImage(Graphics *g, Image *theImage, const Rect &theRect, int x, int y)
 {
 	if (theRect.mWidth != 0)
@@ -96,16 +106,16 @@ void ButtonWidget::Draw(Graphics* g)
 	if (mBtnNoDraw)
 		return;
 
-	if ((mFont == nullptr) && (mLabel.length() > 0))
-		mFont = FONT_PICO129->Duplicate();
-		//mFont = new SysFont(mWidgetManager->mApp, "Arial Unicode MS", 10);
+	_Font* aDefaultFont = mWidgetManager->mApp->mDefaultFont.load();
+	if ((mFont == nullptr) && (mLabel.length() > 0) && (aDefaultFont != nullptr))
+		mFont.reset(aDefaultFont->Duplicate());
 
 	bool isDown = mIsDown && mIsOver && !mDisabled;
 	isDown ^= mInverted;
 
 	int aFontX = 0; // BUTTON_LABEL_LEFT
 	int aFontY = 0;
-	
+
 	if (mFont != nullptr)
 	{
 		if (mLabelJustify == BUTTON_LABEL_CENTER)
@@ -115,16 +125,16 @@ void ButtonWidget::Draw(Graphics* g)
 		aFontY = (mHeight + mFont->GetAscent() - mFont->GetAscent()/6 - 1)/2;
 
 		//aFontX = (mWidth - mFont->StringWidth(mLabel))/2;
-		//aFontY = (mHeight - mFont->GetHeight())/2 + mFont->GetAscent() - 1;		
+		//aFontY = (mHeight - mFont->GetHeight())/2 + mFont->GetAscent() - 1;
 	}
 
-	g->SetFont(mFont);
-	
+	g->SetFont(mFont.get());
+
 	if ((mButtonImage == nullptr) && (mDownImage == nullptr))
 	{
 		if (!mFrameNoDraw)
 		{
-			g->SetColor(mColors[COLOR_BKG]);
+			g->SetColor(mColors.mBkg);
 			g->FillRect(0, 0, mWidth, mHeight);
 		}
 
@@ -132,50 +142,50 @@ void ButtonWidget::Draw(Graphics* g)
 		{
 			if (!mFrameNoDraw)
 			{
-				g->SetColor(mColors[COLOR_DARK_OUTLINE]);
+				g->SetColor(mColors.mDarkOutline);
 				g->FillRect(0, 0, mWidth-1, 1);
 				g->FillRect(0, 0, 1, mHeight-1);
-				
-				g->SetColor(mColors[COLOR_LIGHT_OUTLINE]);
+
+				g->SetColor(mColors.mLightOutline);
 				g->FillRect(0, mHeight - 1, mWidth, 1);
-				g->FillRect(mWidth - 1, 0, 1, mHeight);									
-		
-				g->SetColor(mColors[COLOR_MEDIUM_OUTLINE]);
+				g->FillRect(mWidth - 1, 0, 1, mHeight);
+
+				g->SetColor(mColors.mMediumOutline);
 				g->FillRect(1, 1, mWidth - 3, 1);
 				g->FillRect(1, 1, 1, mHeight - 3);
 			}
 
 			if (mIsOver)
-				g->SetColor(mColors[COLOR_LABEL_HILITE]);
+				g->SetColor(mColors.mLabelHilite);
 			else
-				g->SetColor(mColors[COLOR_LABEL]);
+				g->SetColor(mColors.mLabel);
 
 			g->DrawString(mLabel, aFontX+1, aFontY+1);
 		}
 		else
-		{			
+		{
 			if (!mFrameNoDraw)
 			{
-				g->SetColor(mColors[COLOR_LIGHT_OUTLINE]);
+				g->SetColor(mColors.mLightOutline);
 				g->FillRect(0, 0, mWidth-1, 1);
 				g->FillRect(0, 0, 1, mHeight-1);
-				
-				g->SetColor(mColors[COLOR_DARK_OUTLINE]);
-				g->FillRect(0, mHeight - 1, mWidth, 1);
-				g->FillRect(mWidth - 1, 0, 1, mHeight);									
-		
-				g->SetColor(mColors[COLOR_MEDIUM_OUTLINE]);
-				g->FillRect(1, mHeight - 2, mWidth - 2, 1);
-				g->FillRect(mWidth - 2, 1, 1, mHeight - 2);			
-			}
-			
-			if (mIsOver)
-				g->SetColor(mColors[COLOR_LABEL_HILITE]);
-			else
-				g->SetColor(mColors[COLOR_LABEL]);
 
-			g->DrawString(mLabel, aFontX, aFontY);		
-		}		
+				g->SetColor(mColors.mDarkOutline);
+				g->FillRect(0, mHeight - 1, mWidth, 1);
+				g->FillRect(mWidth - 1, 0, 1, mHeight);
+
+				g->SetColor(mColors.mMediumOutline);
+				g->FillRect(1, mHeight - 2, mWidth - 2, 1);
+				g->FillRect(mWidth - 2, 1, 1, mHeight - 2);
+			}
+
+			if (mIsOver)
+				g->SetColor(mColors.mLabelHilite);
+			else
+				g->SetColor(mColors.mLabel);
+
+			g->DrawString(mLabel, aFontX, aFontY);
+		}
 	}
 	else
 	{
@@ -201,9 +211,9 @@ void ButtonWidget::Draw(Graphics* g)
 				DrawButtonImage(g,mButtonImage,mNormalRect,0,0);
 
 			if (mIsOver)
-				g->SetColor(mColors[COLOR_LABEL_HILITE]);
+				g->SetColor(mColors.mLabelHilite);
 			else
-				g->SetColor(mColors[COLOR_LABEL]);
+				g->SetColor(mColors.mLabel);
 			g->DrawString(mLabel, aFontX, aFontY);
 		}
 		else
@@ -215,7 +225,7 @@ void ButtonWidget::Draw(Graphics* g)
 			else
 				DrawButtonImage(g, mButtonImage, mNormalRect, 1, 1);
 
-			g->SetColor(mColors[COLOR_LABEL_HILITE]);
+			g->SetColor(mColors.mLabelHilite);
 			g->DrawString(mLabel, aFontX+1, aFontY+1);
 		}
 	}
@@ -224,7 +234,7 @@ void ButtonWidget::Draw(Graphics* g)
 void ButtonWidget::SetDisabled(bool isDisabled)
 {
 	Widget::SetDisabled(isDisabled);
-	
+
 	if (HaveButtonImage(mDisabledImage,mDisabledRect))
 		MarkDirty();
 }
@@ -235,10 +245,10 @@ void ButtonWidget::MouseEnter()
 
 	if (mOverAlphaFadeInSpeed==0 && mOverAlpha>0)
 		mOverAlpha = 0;
-	
-	if (mIsDown || (HaveButtonImage(mOverImage,mOverRect)) || (mColors[COLOR_LABEL_HILITE] != mColors[COLOR_LABEL]))
+
+	if (mIsDown || (HaveButtonImage(mOverImage,mOverRect)) || (mColors.mLabelHilite != mColors.mLabel))
 		MarkDirty();
-	
+
 	mButtonListener->ButtonMouseEnter(mId);
 }
 
@@ -251,35 +261,35 @@ void ButtonWidget::MouseLeave()
 	else if (mOverAlphaSpeed>0 && mOverAlpha==0) // fade out from full
 		mOverAlpha = 1;
 
-	if (mIsDown || HaveButtonImage(mOverImage,mOverRect) || (mColors[COLOR_LABEL_HILITE] != mColors[COLOR_LABEL]))
+	if (mIsDown || HaveButtonImage(mOverImage,mOverRect) || (mColors.mLabelHilite != mColors.mLabel))
 		MarkDirty();
-	
+
 	mButtonListener->ButtonMouseLeave(mId);
 }
 
 void ButtonWidget::MouseMove(int theX, int theY)
 {
 	Widget::MouseMove(theX, theY);
-	
+
 	mButtonListener->ButtonMouseMove(mId, theX, theY);
 }
 
 void ButtonWidget::MouseDown(int theX, int theY, int theBtnNum, int theClickCount)
 {
 	Widget::MouseDown(theX, theY, theBtnNum, theClickCount);
-		
+
 	mButtonListener->ButtonPress(mId);
-	
+
 	MarkDirty();
 }
 
 void ButtonWidget::MouseUp(int theX, int theY, int theBtnNum, int theClickCount)
-{	
+{
 	Widget::MouseUp(theX, theY, theBtnNum, theClickCount);
 
 	if (mIsOver && mWidgetManager->mHasFocus)
 		mButtonListener->ButtonDepress(mId);
-	
+
 	MarkDirty();
 }
 

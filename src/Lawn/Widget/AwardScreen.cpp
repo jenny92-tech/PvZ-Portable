@@ -32,12 +32,11 @@
 #include "../../Resources.h"
 #include "../../GameConstants.h"
 #include "../System/PlayerInfo.h"
-#include "../../Sexy.TodLib/TodFoley.h"
-#include "../../Sexy.TodLib/TodCommon.h"
-#include "../../Sexy.TodLib/TodStringFile.h"
+#include "../../PvzpLib/PvzpFoley.h"
+#include "../../PvzpLib/PvzpCommon.h"
+#include "../../PvzpLib/PvzpStringFile.h"
 #include "AchievementsScreen.h"
 
-// GOTY @Patoke: 0x4063E0
 AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowingAchievements)
 {
 	mApp = theApp;
@@ -49,7 +48,6 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 
 	mLoadedResourceNames.push_back("DelayLoad_AwardScreen");
 
-	// @Patoke: implemented
 	if (!theShowingAchievements) {
 		mShowingAchievements = false;
 	}
@@ -134,44 +132,43 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 	}
 
 	for (std::string& resource : mLoadedResourceNames)
-		TodLoadResources(resource.c_str());
+		PvzpLoadResources(resource.c_str());
 
-	mStartButton = new GameButton(AwardScreen::AwardScreen_Start);
+	mStartButton = std::make_unique<GameButton>(AwardScreen::AwardScreen_Start);
 	mStartButton->mButtonImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON;
 	mStartButton->mOverImage = nullptr;
 	mStartButton->mDownImage = nullptr;
 	mStartButton->mDisabledImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON_DISABLED;
 	mStartButton->mOverOverlayImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON_GLOW;
 	mStartButton->SetFont(Sexy::FONT_DWARVENTODCRAFT15);
-	mStartButton->mColors[ButtonWidget::COLOR_LABEL] = Color(213, 159, 43);
-	mStartButton->mColors[ButtonWidget::COLOR_LABEL_HILITE] = Color(213, 159, 43);
+	mStartButton->SetLabelColor(Color(213, 159, 43));
+	mStartButton->SetLabelHiliteColor(Color(213, 159, 43));
 	mStartButton->Resize(324, 500, 156, 42);
 	mStartButton->mTextOffsetY = -1;
 
-	// @Patoke: implemented
-	mContinueButton = new GameButton(AwardScreen::AwardScreen_Start);
+	mContinueButton = std::make_unique<GameButton>(AwardScreen::AwardScreen_Start);
 	mContinueButton->mButtonImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON;
 	mContinueButton->mOverImage = nullptr;
 	mContinueButton->mDownImage = nullptr;
 	mContinueButton->mDisabledImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON_DISABLED;
 	mContinueButton->mOverOverlayImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON_GLOW;
 	mContinueButton->SetFont(Sexy::FONT_DWARVENTODCRAFT15);
-	mContinueButton->mColors[ButtonWidget::COLOR_LABEL] = Color(213, 159, 43);
-	mContinueButton->mColors[ButtonWidget::COLOR_LABEL_HILITE] = Color(213, 159, 43);
+	mContinueButton->SetLabelColor(Color(213, 159, 43));
+	mContinueButton->SetLabelHiliteColor(Color(213, 159, 43));
 	mContinueButton->Resize(324, 515, 156, 42);
 	mContinueButton->mParentWidget = this;
 	mContinueButton->mTextOffsetY = -1;
 	mContinueButton->mBtnNoDraw = true;
 	mContinueButton->mDisabled = true;
 
-	mMenuButton = new GameButton(AwardScreen::AwardScreen_Menu);
+	mMenuButton = std::make_unique<GameButton>(AwardScreen::AwardScreen_Menu);
 	mMenuButton->SetLabel("[AWARD_MAIN_MENU_BUTTON]");
 	mMenuButton->mButtonImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON2;
 	mMenuButton->mOverImage = Sexy::IMAGE_SEEDCHOOSER_BUTTON2_GLOW;
 	mMenuButton->mDownImage = nullptr;
 	mMenuButton->SetFont(Sexy::FONT_BRIANNETOD12);
-	mMenuButton->mColors[ButtonWidget::COLOR_LABEL] = Color(42, 42, 90);
-	mMenuButton->mColors[ButtonWidget::COLOR_LABEL_HILITE] = Color(42, 42, 90);
+	mMenuButton->SetLabelColor(Color(42, 42, 90));
+	mMenuButton->SetLabelHiliteColor(Color(42, 42, 90));
 	mMenuButton->mParentWidget = this;
 	mMenuButton->Resize(677, 16, 111, 26);
 	mMenuButton->mTextOffsetY = 1;
@@ -190,8 +187,8 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 		mStartButton->mDisabledImage = nullptr;
 		mStartButton->mOverOverlayImage = nullptr;
 		mStartButton->SetFont(Sexy::FONT_HOUSEOFTERROR20);
-		mStartButton->mColors[ButtonWidget::COLOR_LABEL] = Color(255, 255, 255);
-		mStartButton->mColors[ButtonWidget::COLOR_LABEL_HILITE] = Color(213, 159, 43);
+		mStartButton->SetLabelColor(Color(255, 255, 255));
+		mStartButton->SetLabelHiliteColor(Color(213, 159, 43));
 		mStartButton->Resize(325, 505, 190, 73);
 		mStartButton->mTextOffsetX = 33;
 		mStartButton->mTextOffsetY = -2;
@@ -213,7 +210,7 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 	}
 	else if (aLevel == 1 && mApp->HasFinishedAdventure())
 	{
-		ReportAchievement::GiveAchievement(mApp, HomeSecurity, false); // @Patoke: add achievement
+		ReportAchievement::GiveAchievement(mApp, HomeSecurity, false);
 		mStartButton->SetLabel("[CONTINUE_BUTTON]");
 		mMenuButton->mBtnNoDraw = true;
 		mMenuButton->mDisabled = true;
@@ -225,7 +222,6 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 	else
 		mStartButton->SetLabel("[NEXT_LEVEL_BUTTON]");
 
-	// @Patoke: implemented
 	if (mApp->IsAdventureMode() && mApp->EarnedGoldTrophy()) {
 		ReportAchievement::GiveAchievement(mApp, NovelPeasPrize, false);
 	}
@@ -236,7 +232,6 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 		mMenuButton->mDisabled = true;
 	}
 
-	// @Patoke: implemented
 	if (mShowingAchievements) {
 		mShowStartButtonAfterAchievements = !mStartButton->mBtnNoDraw;
 		mShowMenuButtonAfterAchievements = !mMenuButton->mBtnNoDraw;
@@ -257,12 +252,7 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 		mApp->mMusic->MakeSureMusicIsPlaying(MUSIC_TUNE_ZEN_GARDEN);
 }
 
-AwardScreen::~AwardScreen()
-{
-	if (mStartButton) delete mStartButton;
-	if (mContinueButton) delete mContinueButton; // @Patoke: add new button
-	if (mMenuButton) delete mMenuButton;
-}
+AwardScreen::~AwardScreen() = default;
 
 bool AwardScreen::IsPaperNote()
 {
@@ -276,9 +266,9 @@ bool AwardScreen::IsPaperNote()
 void AwardScreen::DrawBottom(Graphics* g, std::string_view theTitle, std::string_view theAward, std::string_view theMessage)
 {
 	g->DrawImage(Sexy::IMAGE_AWARDSCREEN_BACK, 0, 0);
-	TodDrawString(g, theTitle, BOARD_WIDTH / 2, 58, Sexy::FONT_DWARVENTODCRAFT24, Color(213, 159, 43), DS_ALIGN_CENTER);
-	TodDrawString(g, theAward, BOARD_WIDTH / 2, 326, Sexy::FONT_DWARVENTODCRAFT18YELLOW, Color::White, DS_ALIGN_CENTER);
-	TodDrawStringWrapped(g, theMessage, Rect(285, 360, 230, 90), Sexy::FONT_BRIANNETOD16, Color(40, 50, 90), DS_ALIGN_CENTER_VERTICAL_MIDDLE);
+	PvzpDrawString(g, theTitle, BOARD_WIDTH / 2, 58, Sexy::FONT_DWARVENTODCRAFT24, Color(213, 159, 43), DS_ALIGN_CENTER);
+	PvzpDrawString(g, theAward, BOARD_WIDTH / 2, 326, Sexy::FONT_DWARVENTODCRAFT18YELLOW, Color::White, DS_ALIGN_CENTER);
+	PvzpDrawStringWrapped(g, theMessage, Rect(285, 360, 230, 90), Sexy::FONT_BRIANNETOD16, Color(40, 50, 90), DS_ALIGN_CENTER_VERTICAL_MIDDLE);
 }
 
 void AwardScreen::DrawAwardSeed(Graphics* g)
@@ -297,13 +287,12 @@ void AwardScreen::DrawAwardSeed(Graphics* g)
 	g->SetScale(1, 1, 0, 0);
 }
 
-// GOTY @Patoke: 0x4081C0
 void AwardScreen::Draw(Graphics* g)
 {
 	g->SetLinearBlend(true);
 
 	int aLevel = mApp->mPlayerInfo->GetLevel();
-	if (mShowingAchievements) // @Patoke: add call
+	if (mShowingAchievements)
 		DrawAchievements(g);
 	else if (mAwardType == AWARD_CREDITS_ZOMBIENOTE)
 	{
@@ -322,14 +311,14 @@ void AwardScreen::Draw(Graphics* g)
 		g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 		g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE_HELP, 131, 132);
 	}
-	else if (mAwardType != AWARD_ACHIEVEMENTONLY) // @Patoke: add check
+	else if (mAwardType != AWARD_ACHIEVEMENTONLY)
 	{
 		if (!mApp->IsAdventureMode())
 		{
 			if (mApp->EarnedGoldTrophy())
 			{
 				DrawBottom(g, "[BEAT_GAME_MESSAGE1]", "[GOLD_SUNFLOWER_TROPHY]", "[BEAT_GAME_MESSAGE2]");
-				TodDrawImageCelCenterScaledF(g, Sexy::IMAGE_SUNFLOWER_TROPHY, 330, 80, 1, 0.7f, 0.7f);
+				PvzpDrawImageCelCenterScaledF(g, Sexy::IMAGE_SUNFLOWER_TROPHY, 325, 65, 1, 0.6f, 0.6f);
 			}
 			else
 			{
@@ -363,7 +352,7 @@ void AwardScreen::Draw(Graphics* g)
 			g->DrawImage(Sexy::IMAGE_BACKGROUND1, -700, -300, 2800, 1200);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE1, 131, 132);
-			TodDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
+			PvzpDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
 		}
 		else if (aLevel == 15)
 		{
@@ -375,7 +364,7 @@ void AwardScreen::Draw(Graphics* g)
 			g->DrawImage(Sexy::IMAGE_BACKGROUND2, -700, -300, 2800, 1200);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE2, 133, 127);
-			TodDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
+			PvzpDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
 		}
 		else if (aLevel == 25)
 		{
@@ -387,7 +376,7 @@ void AwardScreen::Draw(Graphics* g)
 			g->DrawImage(Sexy::IMAGE_BACKGROUND1, -700, -300, 2800, 1200);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE3, 120, 117);
-			TodDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
+			PvzpDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
 		}
 		else if (aLevel == 35)
 		{
@@ -399,7 +388,7 @@ void AwardScreen::Draw(Graphics* g)
 			g->DrawImage(Sexy::IMAGE_BACKGROUND2, -700, -300, 2800, 1200);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE4, 102, 117);
-			TodDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
+			PvzpDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
 		}
 		else if (aLevel == 45)
 		{
@@ -411,12 +400,12 @@ void AwardScreen::Draw(Graphics* g)
 			g->DrawImage(Sexy::IMAGE_BACKGROUND1, -700, -300, 2800, 1200);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 			g->DrawImage(Sexy::IMAGE_ZOMBIE_FINAL_NOTE, 114, 138);
-			TodDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
+			PvzpDrawString(g, "[FOUND_NOTE]", BOARD_WIDTH / 2, 70, Sexy::FONT_DWARVENTODCRAFT24, Color(255, 200, 0, 255), DS_ALIGN_CENTER);
 		}
 		else if (aLevel == 1 && mApp->HasFinishedAdventure())
 		{
 			DrawBottom(g, "[WIN_MESSAGE1]", "[SILVER_SUNFLOWER_TROPHY]", "[WIN_MESSAGE2]");
-			TodDrawImageCelCenterScaledF(g, Sexy::IMAGE_SUNFLOWER_TROPHY, 325, 65, 0, 0.7f, 0.7f);
+			PvzpDrawImageCelCenterScaledF(g, Sexy::IMAGE_SUNFLOWER_TROPHY, 325, 65, 0, 0.7f, 0.7f);
 		}
 		else
 		{
@@ -426,24 +415,22 @@ void AwardScreen::Draw(Graphics* g)
 
 	mStartButton->Draw(g);
 	mMenuButton->Draw(g);
-	mContinueButton->Draw(g); // @Patoke: add call
+	mContinueButton->Draw(g);
 
-	int aFadeInAlpha = TodAnimateCurve(180, 0, mFadeInCounter, 255, 0, CURVE_LINEAR);
+	int aFadeInAlpha = PvzpAnimateCurve(180, 0, mFadeInCounter, 255, 0, CURVE_LINEAR);
 	g->SetColor(IsPaperNote() ? Color(0, 0, 0, aFadeInAlpha) : Color(255, 255, 255, aFadeInAlpha));
 	g->FillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 }
 
-// GOTY @Patoke: 0x408FE0
 void AwardScreen::Update()
 {
 	Widget::Update();
-	// @Patoke: implemented
 	if (mShowingAchievements) {
 		mAchievementAnimTime++;
 
 		for (size_t i = 0; i < mAchievementItems.size(); i++) {
 			if (mAchievementAnimTime >= mAchievementItems[i].mStartAnimTime) {
-				mAchievementItems[i].mY = TodAnimateCurve(mAchievementItems[i].mStartAnimTime, mAchievementItems[i].mEndAnimTime, mAchievementAnimTime, mAchievementItems[i].mStartY, mAchievementItems[i].mDestY, CURVE_EASE_IN_OUT);
+				mAchievementItems[i].mY = PvzpAnimateCurve(mAchievementItems[i].mStartAnimTime, mAchievementItems[i].mEndAnimTime, mAchievementAnimTime, mAchievementItems[i].mStartY, mAchievementItems[i].mDestY, CURVE_EASE_IN_OUT);
 			}
 
 			if (mAchievementItems[mAchievementItems.size() - 1].mY == mAchievementItems[mAchievementItems.size() - 1].mDestY) {
@@ -456,7 +443,7 @@ void AwardScreen::Update()
 	if (mApp->GetDialogCount() > 0) return;
 	mStartButton->Update();
 	mMenuButton->Update();
-	mContinueButton->Update(); // @Patoke: add call
+	mContinueButton->Update();
 	mApp->SetCursor(mStartButton->IsMouseOver() || mMenuButton->IsMouseOver() || mContinueButton->IsMouseOver() ? CURSOR_HAND : CURSOR_POINTER);
 	MarkDirty();
 	if (mFadeInCounter > 0) mFadeInCounter--;
@@ -484,7 +471,6 @@ void AwardScreen::KeyDown(KeyCode theKey)
 	}
 }
 
-// GOTY @Patoke: 0x409530
 void AwardScreen::StartButtonPressed()
 {
 	if (mApp->GetDialog(DIALOG_STORE))
@@ -586,25 +572,21 @@ void AwardScreen::StartButtonPressed()
 	}
 }
 
-// GOTY @Patoke: 0x4097A0
-void AwardScreen::MouseDown(int x, int y, int theClickCount)
+void AwardScreen::MouseDown([[maybe_unused]] int x, [[maybe_unused]] int y, int theClickCount)
 {
-	(void)x;(void)y;
 	if (theClickCount == 1) {
 		if (mStartButton->IsMouseOver() || mMenuButton->IsMouseOver() || mContinueButton->IsMouseOver())
 			mApp->PlaySample(Sexy::SOUND_TAP);
 	}
 }
 
-// GOTY @Patoke: 0x409840
-void AwardScreen::MouseUp(int x, int y, int theClickCount)
+void AwardScreen::MouseUp([[maybe_unused]] int x, [[maybe_unused]] int y, int theClickCount)
 {
-	(void)x;(void)y;
 	if (theClickCount == 1)
 	{
 		if (mStartButton->IsMouseOver())
 			StartButtonPressed();
-		if (mContinueButton->IsMouseOver()) // @Patoke: add call
+		if (mContinueButton->IsMouseOver())
 			AchievementsContinuePressed();
 		if (mMenuButton->IsMouseOver())
 		{
@@ -614,8 +596,6 @@ void AwardScreen::MouseUp(int x, int y, int theClickCount)
 	}
 }
 
-// @Patoke: implement functions
-// GOTY @Patoke: 0x407C20
 void AwardScreen::DrawAchievements(Graphics* g) {
 	g->SetColorizeImages(true);
 	// Rect aTextWrap = Rect(0, 0, 0, 77); // unused
@@ -625,7 +605,7 @@ void AwardScreen::DrawAchievements(Graphics* g) {
 
 	g->DrawImage(IMAGE_CHALLENGE_BACKGROUND, 0, 0);
 
-	TodDrawString(g, mApp->GetString("ACHIEVEMENTS_TITLE", "ACHIEVEMENTS"), BOARD_WIDTH / 2, 58, FONT_HOUSEOFTERROR28, Color(220, 220, 220), DS_ALIGN_CENTER);
+	PvzpDrawString(g, mApp->GetString("ACHIEVEMENTS_TITLE", "ACHIEVEMENTS"), BOARD_WIDTH / 2, 58, FONT_HOUSEOFTERROR28, Color(220, 220, 220), DS_ALIGN_CENTER);
 
 	for (size_t i = 0; i < mAchievementItems.size(); i++) {
 		std::string aAchievementName = std::string(gAchievementList[mAchievementItems[i].mId].name);
@@ -638,12 +618,11 @@ void AwardScreen::DrawAchievements(Graphics* g) {
 
 		g->DrawImage(IMAGE_ACHEESEMENTS_ICONS, aDestRect, aSrcRect);
 
-		TodDrawString(g, aAchievementName, 450, mAchievementItems[i].mY + 25, FONT_DWARVENTODCRAFT15, Color(224, 187, 98), DS_ALIGN_CENTER);
-		TodDrawStringWrapped(g, aAchievementDesc, aTextRect, FONT_DWARVENTODCRAFT12, Color(255, 255, 255), DS_ALIGN_CENTER_VERTICAL_MIDDLE);
+		PvzpDrawString(g, aAchievementName, 450, mAchievementItems[i].mY + 25, FONT_DWARVENTODCRAFT15, Color(224, 187, 98), DS_ALIGN_CENTER);
+		PvzpDrawStringWrapped(g, aAchievementDesc, aTextRect, FONT_DWARVENTODCRAFT12, Color(255, 255, 255), DS_ALIGN_CENTER_VERTICAL_MIDDLE);
 	}
 }
 
-// GOTY @Patoke: 0x409400
 void AwardScreen::AchievementsContinuePressed() {
 	if (mAwardType == AWARD_ACHIEVEMENTONLY) {
 		mApp->KillAwardScreen();
